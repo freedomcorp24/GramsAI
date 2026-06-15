@@ -3,6 +3,8 @@ import { Slug } from "@opencode-ai/core/util/slug"
 import { SessionLegacy } from "@opencode-ai/core/session/legacy"
 import { serviceUse } from "@opencode-ai/core/effect/service-use"
 import path from "path"
+import { rmSync } from "fs"
+import { execFileSync } from "child_process"
 import { BackgroundJob } from "@/background/job"
 import { Decimal } from "decimal.js"
 import type { ProviderMetadata, Usage } from "@opencode-ai/llm"
@@ -694,6 +696,19 @@ export const layer: Layer.Layer<
           { location: eventLocation(session) },
         )
         yield* events.remove(sessionID)
+        // GRAMSAI: reclaim this session's git worktree (opencode leaves it on disk
+        // forever — upstream gap #16101/#22110). Scoped to THIS session's own
+        // directory only; guarded so we never rm outside the worktree tree.
+        try {
+          const dir = session.directory
+          if (dir && dir.includes("/share/opencode/worktree/")) {
+            try {
+              const root = path.resolve(dir, "..", "..", "..", "..")
+              execFileSync("git", ["worktree", "remove", "--force", dir], { cwd: root, stdio: "ignore" })
+            } catch (_) {}
+            try { rmSync(dir, { recursive: true, force: true }) } catch (_) {}
+          }
+        } catch (_) {}
       } catch (e) {
         log.error(e)
       }
