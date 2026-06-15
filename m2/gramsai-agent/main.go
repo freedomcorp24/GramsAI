@@ -1,21 +1,17 @@
 // GramsAI control-agent — runs ON each worker host (M2 today).
 // Accepts authenticated commands from the gateway and runs docker LOCALLY.
-// Docker is NEVER exposed to the network; only these few operations are.
-// Stdlib only (no external deps) so it builds anywhere with `go build`.
 package main
 
 import (
-	"archive/zip"
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -24,8 +20,8 @@ var (
 	secret    string
 	image     = envOr("GRAMSAI_IMAGE", "gramsai/opencode:latest")
 	dataRoot  = envOr("GRAMSAI_DATA", "/data/opencode")
-	gatewayV1 = envOr("GRAMSAI_GATEWAY_V1", "http://10.152.152.111/v1") // containers call gateway for LLM
-	dnsServer = envOr("GRAMSAI_DNS", "10.152.152.10")                   // Whonix gateway DNS
+	gatewayV1 = envOr("GRAMSAI_GATEWAY_V1", "http://10.152.152.111/v1")
+	dnsServer = envOr("GRAMSAI_DNS", "10.152.152.10")
 	basePort  = envInt("GRAMSAI_BASE_PORT", 5002)
 )
 
@@ -37,20 +33,19 @@ func main() {
 	listen := envOr("AGENT_LISTEN", "0.0.0.0:9090")
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", handleHealth) // unauthenticated liveness
+	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/spawn", authed(handleSpawn))
 	mux.HandleFunc("/stop", authed(handleStop))
 	mux.HandleFunc("/status", authed(handleStatus))
 	mux.HandleFunc("/recreate", authed(handleRecreate))
-	mux.HandleFunc("/dl", authed(handleDownload))
-	mux.HandleFunc("/usage", authed(handleUsage)) // disk usage for a user's data dir
+	mux.HandleFunc("/usage", authed(handleUsage))
+	mux.HandleFunc("/purge", authed(handlePurge))
+	mux.HandleFunc("/wipe-chats", authed(handleWipeChats))
 
 	log.Printf("control-agent listening on %s (image=%s)", listen, image)
 	srv := &http.Server{Addr: listen, Handler: mux, ReadTimeout: 30 * time.Second, WriteTimeout: 120 * time.Second}
 	log.Fatal(srv.ListenAndServe())
 }
-
-// ---- auth ----
 
 func authed(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -67,12 +62,11 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"ok": true, "image": image})
 }
 
-// ---- spawn ----
-
 type spawnReq struct {
 	UserID int64  `json:"user_id"`
-	Token  string `json:"token"` // the user's gsk- gateway token
-	Port   int    `json:"port"`  // gateway assigns; agent honors it
+	Token  string `json:"token"`
+	Port   int    `json:"port"`
+	DEK    string `json:"dek"`   // GRAMSAI_DEK_AGENT: base64 per-user DEK (may be empty)
 }
 
 func handleSpawn(w http.ResponseWriter, r *http.Request) {
@@ -82,37 +76,26 @@ func handleSpawn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := containerName(b.UserID)
-
-	// If already running, just report it (idempotent).
 	if running(name) {
 		writeJSON(w, 200, map[string]any{"ok": true, "name": name, "port": b.Port, "status": "running", "reused": true})
 		return
 	}
-	// Clean any dead container with the same name.
 	_ = run("docker", "rm", "-f", name)
-
 	if err := ensureDirs(b.UserID); err != nil {
 		writeJSON(w, 500, map[string]any{"error": "mkdir: " + err.Error()})
 		return
 	}
-
 	ws := fmt.Sprintf("%s/user-%d/workspace", dataRoot, b.UserID)
 	cfg := fmt.Sprintf("%s/user-%d/config", dataRoot, b.UserID)
 	loc := fmt.Sprintf("%s/user-%d/local", dataRoot, b.UserID)
 	portStr := strconv.Itoa(b.Port)
-
 	args := []string{
-		"run", "-d", "--name", name, "--network", "host", "-w", "/workspace",
-		"-v", ws + ":/workspace",
-		"-v", loc + ":/root/.local",
-		"-v", cfg + ":/root/.config",
-		"-e", "GRAMSAI_TOKEN=" + b.Token,
-		"-e", "GRAMSAI_WORKSPACE=/workspace",
-		"-e", "GRAMSAI_GATEWAY_V1=" + gatewayV1,
-		"--dns", dnsServer,
-		"--restart=always",
-		image,
-		"serve", "--hostname", "0.0.0.0", "--port", portStr,
+		"run", "-d", "--name", name, "--network", "gramsai-iso", "-w", "/workspace",
+		"-p", "10.152.152.100:" + portStr + ":" + portStr,
+		"-v", ws + ":/workspace", "-v", loc + ":/root/.local", "-v", cfg + ":/root/.config",
+		"-e", "GRAMSAI_TOKEN=" + b.Token, "-e", "GRAMSAI_DEK=" + b.DEK, "-e", "GRAMSAI_WORKSPACE=/workspace",
+		"-e", "GRAMSAI_GATEWAY_V1=" + gatewayV1, "--dns", dnsServer, "--restart=always",
+		image, "serve", "--hostname", "0.0.0.0", "--port", portStr,
 	}
 	if out, err := runOut("docker", args...); err != nil {
 		writeJSON(w, 500, map[string]any{"error": "docker run failed", "detail": out})
@@ -120,8 +103,6 @@ func handleSpawn(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]any{"ok": true, "name": name, "port": b.Port, "status": "running"})
 }
-
-// ---- stop ----
 
 func handleStop(w http.ResponseWriter, r *http.Request) {
 	var b struct {
@@ -136,8 +117,6 @@ func handleStop(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"ok": true, "name": name, "status": "stopped"})
 }
 
-// ---- status ----
-
 func handleStatus(w http.ResponseWriter, r *http.Request) {
 	uid := r.URL.Query().Get("user_id")
 	if uid == "" {
@@ -149,10 +128,6 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"name": name, "running": running(name)})
 }
 
-// ---- usage (disk) ----
-// Returns total bytes used by /data/opencode/user-N (workspace + config + local).
-// Used by the gateway's background poller to enforce per-tier storage quotas.
-// du -sb gives apparent size in bytes; if the dir doesn't exist yet, returns 0.
 func handleUsage(w http.ResponseWriter, r *http.Request) {
 	uid := r.URL.Query().Get("user_id")
 	if uid == "" {
@@ -166,13 +141,11 @@ func handleUsage(w http.ResponseWriter, r *http.Request) {
 	}
 	dir := fmt.Sprintf("%s/user-%d", dataRoot, id)
 	if _, statErr := os.Stat(dir); statErr != nil {
-		// Never provisioned (or already torn down) -> zero usage, not an error.
 		writeJSON(w, 200, map[string]any{"user_id": id, "bytes": 0})
 		return
 	}
 	out, runErr := runOut("du", "-sb", dir)
 	if runErr != nil {
-		// Fallback for hosts without GNU du -b: use -sk (KiB) and scale.
 		if outK, kErr := runOut("du", "-sk", dir); kErr == nil {
 			if f := strings.Fields(outK); len(f) > 0 {
 				if kib, perr := strconv.ParseInt(f[0], 10, 64); perr == nil {
@@ -191,7 +164,59 @@ func handleUsage(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"user_id": id, "bytes": bytes})
 }
 
-// ---- recreate (image update) ----
+// handlePurge tears down a user's container AND deletes their data directory.
+// IRREVERSIBLE. Used by the gateway lifecycle job after the 7-day grace period.
+// Hard guard on user_id so a malformed/zero id can never expand the rm path to
+// the parent dir (rm -rf /data/opencode/user-  would be catastrophic).
+func handlePurge(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		UserID int64 `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&b); err != nil || b.UserID <= 0 {
+		writeJSON(w, 400, map[string]any{"error": "valid positive user_id required"})
+		return
+	}
+	name := containerName(b.UserID)
+	_ = run("docker", "rm", "-f", name)
+	dir := fmt.Sprintf("%s/user-%d", dataRoot, b.UserID)
+	// Final belt-and-braces: never operate on a path that doesn't end in /user-N.
+	if !strings.HasSuffix(dir, fmt.Sprintf("/user-%d", b.UserID)) || b.UserID <= 0 {
+		writeJSON(w, 400, map[string]any{"error": "refusing unsafe path"})
+		return
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		writeJSON(w, 500, map[string]any{"error": "purge failed", "detail": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "user_id": b.UserID, "purged": dir})
+}
+
+func handleWipeChats(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		UserID int64 `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&b); err != nil || b.UserID <= 0 {
+		writeJSON(w, 400, map[string]any{"error": "valid positive user_id required"})
+		return
+	}
+	// Remove ONLY the opencode SQLite db files (chats), preserving workspace + config.
+	localDir := fmt.Sprintf("%s/user-%d/local/share/opencode", dataRoot, b.UserID)
+	if !strings.Contains(localDir, fmt.Sprintf("/user-%d/", b.UserID)) || b.UserID <= 0 {
+		writeJSON(w, 400, map[string]any{"error": "refusing unsafe path"})
+		return
+	}
+	// Stop the container so SQLite isn't mid-write, wipe db files, leave the rest.
+	name := containerName(b.UserID)
+	_ = run("docker", "rm", "-f", name)
+	matches, _ := filepath.Glob(localDir + "/opencode*.db*")
+	for _, f := range matches {
+		_ = os.Remove(f)
+	}
+	// Also clear derived storage/tool-output dirs that hold conversation artifacts.
+	_ = os.RemoveAll(fmt.Sprintf("%s/user-%d/local/share/opencode/storage", dataRoot, b.UserID))
+	_ = os.RemoveAll(fmt.Sprintf("%s/user-%d/local/share/opencode/tool-output", dataRoot, b.UserID))
+	writeJSON(w, 200, map[string]any{"ok": true, "user_id": b.UserID, "wiped": len(matches)})
+}
 
 func handleRecreate(w http.ResponseWriter, r *http.Request) {
 	var b spawnReq
@@ -201,7 +226,6 @@ func handleRecreate(w http.ResponseWriter, r *http.Request) {
 	}
 	name := containerName(b.UserID)
 	_ = run("docker", "rm", "-f", name)
-	// re-spawn via the same path
 	handleSpawnInline(w, b, name)
 }
 
@@ -215,9 +239,10 @@ func handleSpawnInline(w http.ResponseWriter, b spawnReq, name string) {
 	loc := fmt.Sprintf("%s/user-%d/local", dataRoot, b.UserID)
 	portStr := strconv.Itoa(b.Port)
 	args := []string{
-		"run", "-d", "--name", name, "--network", "host", "-w", "/workspace",
+		"run", "-d", "--name", name, "--network", "gramsai-iso", "-w", "/workspace",
+		"-p", "10.152.152.100:" + portStr + ":" + portStr,
 		"-v", ws + ":/workspace", "-v", loc + ":/root/.local", "-v", cfg + ":/root/.config",
-		"-e", "GRAMSAI_TOKEN=" + b.Token, "-e", "GRAMSAI_WORKSPACE=/workspace",
+		"-e", "GRAMSAI_TOKEN=" + b.Token, "-e", "GRAMSAI_DEK=" + b.DEK, "-e", "GRAMSAI_WORKSPACE=/workspace",
 		"-e", "GRAMSAI_GATEWAY_V1=" + gatewayV1, "--dns", dnsServer, "--restart=always",
 		image, "serve", "--hostname", "0.0.0.0", "--port", portStr,
 	}
@@ -226,112 +251,6 @@ func handleSpawnInline(w http.ResponseWriter, b spawnReq, name string) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"ok": true, "name": name, "port": b.Port, "status": "running"})
-}
-
-// ---- helpers ----
-
-// handleDownload streams a zip of a user's chat folder. The gateway calls this
-// with ?user_id=N&dir=/workspace/<sub>. Host path is /data/opencode/user-N/
-// workspace[/<sub>]; any path escaping the user's workspace is refused.
-func handleDownload(w http.ResponseWriter, r *http.Request) {
-	uid, _ := strconv.ParseInt(r.URL.Query().Get("user_id"), 10, 64)
-	if uid <= 0 {
-		writeJSON(w, 400, map[string]any{"error": "valid positive user_id required"})
-		return
-	}
-	userRoot := fmt.Sprintf("%s/user-%d", dataRoot, uid)
-	cdir := r.URL.Query().Get("dir")
-	var target string
-	switch {
-	case cdir == "/workspace" || strings.HasPrefix(cdir, "/workspace/"):
-		target = userRoot + "/workspace" + strings.TrimPrefix(cdir, "/workspace")
-	case strings.HasPrefix(cdir, "/root/.local"):
-		target = userRoot + "/local" + strings.TrimPrefix(cdir, "/root/.local")
-	case strings.HasPrefix(cdir, "/root/.config"):
-		target = userRoot + "/config" + strings.TrimPrefix(cdir, "/root/.config")
-	default:
-		writeJSON(w, 400, map[string]any{"error": "unsupported dir"})
-		return
-	}
-	target = filepath.Clean(target)
-	if target != userRoot && !strings.HasPrefix(target, userRoot+"/") {
-		writeJSON(w, 400, map[string]any{"error": "refusing unsafe path"})
-		return
-	}
-	if r.URL.Query().Get("mode") == "ls" {
-		type fileEnt struct {
-			Path string `json:"path"`
-			Name string `json:"name"`
-			Size int64  `json:"size"`
-		}
-		files := []fileEnt{}
-		_ = filepath.Walk(target, func(p string, fi os.FileInfo, werr error) error {
-			if werr != nil || fi.IsDir() {
-				return nil
-			}
-			rel, rerr := filepath.Rel(target, p)
-			if rerr != nil {
-				return nil
-			}
-			files = append(files, fileEnt{
-				Path: strings.TrimRight(cdir, "/") + "/" + filepath.ToSlash(rel),
-				Name: filepath.Base(p),
-				Size: fi.Size(),
-			})
-			return nil
-		})
-		writeJSON(w, 200, map[string]any{"files": files})
-		return
-	}
-	info, err := os.Stat(target)
-	if err != nil {
-		writeJSON(w, 404, map[string]any{"error": "not found"})
-		return
-	}
-	if !info.IsDir() {
-		f, err := os.Open(target)
-		if err != nil {
-			writeJSON(w, 404, map[string]any{"error": "not found"})
-			return
-		}
-		defer f.Close()
-		disp := "attachment"
-		if r.URL.Query().Get("disp") == "inline" {
-			disp = "inline"
-		}
-		w.Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=%q", disp, filepath.Base(target)))
-		http.ServeContent(w, r, filepath.Base(target), info.ModTime(), f)
-		return
-	}
-	name := filepath.Base(target)
-	if name == "workspace" || name == "" || name == "." || name == string(filepath.Separator) {
-		name = "chat"
-	}
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", name+".zip"))
-	zw := zip.NewWriter(w)
-	defer zw.Close()
-	_ = filepath.Walk(target, func(p string, fi os.FileInfo, walkErr error) error {
-		if walkErr != nil || fi.IsDir() {
-			return nil
-		}
-		relName, err := filepath.Rel(target, p)
-		if err != nil {
-			return nil
-		}
-		f, err := os.Open(p)
-		if err != nil {
-			return nil
-		}
-		hw, err := zw.Create(relName)
-		if err != nil {
-			f.Close()
-			return nil
-		}
-		_, _ = io.Copy(hw, f)
-		f.Close()
-		return nil
-	})
 }
 
 func containerName(userID int64) string { return fmt.Sprintf("oc-user-%d", userID) }
