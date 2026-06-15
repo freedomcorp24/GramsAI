@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>grams</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon-v3.svg" />
+    <link rel="icon" type="image/png" href="/favicon-96x96-v3.png" sizes="96x96" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v3.png" />
+<style>
+  :root{
+    --bg:#0a0c0f; --panel:#11151a; --txt:#e6edf3; --dim:rgba(255,255,255,.55); --faint:rgba(255,255,255,.35);
+    --accent:#3fb950; --line:rgba(255,255,255,.10); --glass:rgba(255,255,255,.06);
+    --mono: ui-monospace,"SFMono-Regular","Menlo","Consolas",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @keyframes blink{50%{opacity:0}}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  html{scroll-behavior:smooth;scroll-snap-type:y proximity}
+  body{
+    background:
+      radial-gradient(circle at 50% -10%, rgba(63,185,80,.12) 0%, transparent 55%),
+      var(--bg);
+    color:var(--txt);font-family:var(--sans);-webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none}
+
+  /* top-right sign-in pill */
+  .topbar{position:fixed;top:0;right:0;z-index:40;padding:22px 26px}
+  .signin{display:inline-flex;height:42px;align-items:center;border-radius:999px;
+    padding:0 22px;font-size:14px;font-weight:500;color:rgba(255,255,255,.9);
+    background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(20px);
+    transition:background .15s,color .15s}
+  .signin:hover{background:rgba(255,255,255,.12);color:#fff}
+
+  /* hero */
+  .hero{position:relative;min-height:100dvh;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;padding:0 16px;scroll-snap-align:start}
+  .word{font-size:clamp(44px,8vw,68px);font-weight:500;letter-spacing:-.02em;line-height:1.05}
+  .typed{margin-top:6px;font-size:clamp(44px,8vw,68px);font-weight:500;letter-spacing:-.02em;
+    line-height:1.05;color:var(--accent);min-height:1.1em}
+  .cursor{display:inline-block;width:3px;height:.9em;background:var(--accent);
+    margin-left:4px;vertical-align:-2px;animation:blink 1s step-end infinite}
+
+  /* CTA "pill" echoing the DarkAI hero input */
+  .cta-wrap{margin:34px auto 0;width:92vw;max-width:560px}
+  .cta{display:flex;align-items:center;justify-content:space-between;gap:16px;
+    width:100%;border-radius:999px;padding:16px 16px 16px 26px;cursor:pointer;
+    background:rgba(255,255,255,.06);border:1px solid var(--line);
+    backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+    box-shadow:0 20px 70px rgba(0,0,0,.55);transition:background .15s}
+  .cta:hover{background:rgba(255,255,255,.10)}
+  .cta .label{font-size:18px;color:rgba(255,255,255,.85)}
+  .cta .arrow{display:grid;place-items:center;height:40px;width:40px;border-radius:999px;
+    background:var(--accent);color:#04210c;font-size:20px;font-weight:700;flex:0 0 auto}
+  .latin{margin-top:18px;color:var(--faint);font-size:13px;font-style:italic;font-family:var(--mono)}
+
+  .scrollhint{margin-top:64px;display:flex;flex-direction:column;align-items:center;gap:12px}
+  .scrollhint .chev{display:grid;place-items:center;height:40px;width:40px;border-radius:999px;
+    border:1px solid var(--line);background:var(--glass);color:var(--dim);cursor:pointer;font-size:18px}
+  .scrollhint .chev:hover{background:rgba(255,255,255,.1)}
+  .scrollhint .ttl{font-size:26px;font-weight:500;color:rgba(255,255,255,.9)}
+
+  /* features */
+  .features{max-width:1040px;margin:0 auto;padding:80px 16px 100px;scroll-snap-align:start}
+  .features h2{font-size:30px;font-weight:600;text-align:center;margin:0 0 8px}
+  .features .lead{text-align:center;color:var(--dim);font-size:15px;margin:0 0 48px}
+  .grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .feat{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015));
+    border:1px solid var(--line);border-radius:16px;padding:24px}
+  .feat .ic{font-size:22px}
+  .feat h3{margin:14px 0 6px;font-size:17px;font-weight:600}
+  .feat p{margin:0;color:var(--dim);font-size:14px;line-height:1.55}
+  /* GRAMSAI_SPECIALTIES */
+  /* GRAMSAI_SPEC_FIX */
+  .specialties{max-width:1040px;margin:0 auto;padding:60px 16px 90px;margin-top:40px;border-top:1px solid var(--line)}
+  .specialties h2{font-size:28px;font-weight:600;text-align:center;margin:0 0 8px}
+  .specialties .lead{text-align:center;color:var(--dim);font-size:15px;margin:0 0 40px}
+  .spgrid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(232px,1fr))}
+  .sp{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:rgba(255,255,255,.02)}
+  .sp .nm{font-weight:600;font-size:15px;margin:0 0 5px;color:#fff}
+  .sp p{margin:0;color:var(--dim);font-size:13px;line-height:1.5}
+
+  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:44px auto 0;max-width:840px}
+  .chip{font-size:13px;color:rgba(255,255,255,.75);background:var(--glass);
+    border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-family:var(--mono)}
+
+  .closer{text-align:center;padding:40px 16px 0}
+  .closer .btn{display:inline-flex;height:50px;align-items:center;border-radius:999px;
+    padding:0 34px;font-size:15px;font-weight:600;color:#04210c;background:var(--accent);
+    transition:filter .15s}
+  .closer .btn:hover{filter:brightness(1.08)}
+
+  footer{border-top:1px solid var(--line);margin-top:90px;padding:34px 16px 50px;
+    text-align:center;color:var(--faint);font-size:12px;line-height:1.8}
+  footer .row{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;color:var(--dim)}
+  /* GRAMSAI_LANDING_LEGAL */
+  footer .legal{display:flex;gap:18px;justify-content:center;margin-top:12px}
+  footer .legal a{color:var(--dim);font-size:13px;text-decoration:none;cursor:pointer}
+  footer .legal a:hover{color:var(--accent);text-decoration:underline}
+  #lgl-ov{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.6);align-items:center;justify-content:center;padding:24px}
+  #lgl-ov.show{display:flex}
+  .lgl-box{background:#16181d;border:1px solid #2a2f37;border-radius:14px;max-width:720px;width:100%;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 24px 60px -16px rgba(0,0,0,.7)}
+  .lgl-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #2a2f37}
+  .lgl-head .t{font-weight:600;font-size:16px;color:#e8eaed}
+  .lgl-head .x{background:transparent;border:0;color:#8b939c;font-size:13px;cursor:pointer;padding:4px 8px}
+  .lgl-body{overflow:auto;padding:18px 22px;text-align:left}
+  .lgl-eff{font-size:12px;font-style:italic;color:#8b939c;margin-bottom:16px}
+  .lgl-h{font-weight:600;font-size:14px;color:#e8eaed;margin:0 0 7px}
+  .lgl-p{font-size:13px;line-height:1.6;color:#c7ccd1;margin:0 0 10px}
+</style>
+</head>
+<body>
+  <div class="topbar"><a class="signin" href="/login">Sign in</a></div>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="word">grams</div>
+    <div class="typed"><span id="typed"></span><span class="cursor"></span></div>
+
+    <div class="cta-wrap">
+      <a class="cta" href="/login">
+        <span class="label">Get started — create an account</span>
+        <span class="arrow">→</span>
+      </a>
+    </div>
+    <div class="latin">malo periculosam libertatem quam quietum servitium</div>
+
+    <div class="scrollhint">
+      <div class="chev" onclick="document.getElementById('features').scrollIntoView()">⌄</div>
+      <div class="ttl">Features</div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features" id="features">
+    <h2>One platform. Every specialty.</h2>
+    <p class="lead">Uncensored models, tuned per domain. No email. Crypto only. Privacy first.</p>
+
+    <div class="grid">
+      <div class="feat"><div class="ic">⌘</div><h3>14 specialties</h3>
+        <p>Each request routed to the best model for the domain — from code to clinical research to image generation.</p></div>
+      <div class="feat"><div class="ic">⚡</div><h3>Fully agentic</h3>
+        <p>Not just chat. Run tools, read and write files, search the live web, and execute multi-step work in your own isolated workspace.</p></div>
+      <div class="feat"><div class="ic">◎</div><h3>Uncensored</h3>
+        <p>No refusals, no lectures. Direct answers from models that don't moralize. You decide what you build.</p></div>
+      <div class="feat"><div class="ic">⛓</div><h3>Crypto only</h3>
+        <p>Pay with Monero, Bitcoin, and 400+ currencies. No card, no bank, no email — nothing tying the account to you.</p></div>
+      <div class="feat"><div class="ic">🜂</div><h3>Vision &amp; images</h3>
+        <p>Drop in screenshots and photos for instant context, or generate images on demand.</p></div>
+      <div class="feat"><div class="ic">⊞</div><h3>Private by design</h3>
+        <p>Per-user isolated containers, your own storage, and infrastructure built to keep your work yours.</p></div>
+    </div>    </div>
+
+    <div class="specialties">
+      <h2>All 14 specialties</h2>
+      <p class="lead">Every request routed to the right model for the job.</p>
+      <div class="spgrid">
+      <div class="sp"><div class="nm">General</div><p>Everyday questions, drafting, brainstorming, and quick answers across any topic. Fast, capable, and available on every tier.</p></div>
+      <div class="sp"><div class="nm">Code</div><p>Write, debug, refactor, and explain code across any language or stack. Reads your files, runs in an isolated workspace, and ships multi-step changes.</p></div>
+      <div class="sp"><div class="nm">Roleplay</div><p>Immersive, in-character interaction with no breaks and no moralizing. Holds persona, tone, and continuity for long-form scenarios.</p></div>
+      <div class="sp"><div class="nm">Adult</div><p>Explicit content for consenting adults, handled without refusals or lectures. Mature themes and frank conversation, for users 18+.</p></div>
+      <div class="sp"><div class="nm">Uncensored</div><p>Maximum-freedom mode for questions other platforms refuse outright. No content filtering, no hedging, no built-in agenda.</p></div>
+      <div class="sp"><div class="nm">Research</div><p>Deep, structured investigation with live web search and source synthesis. Built for literature reviews and complex questions with citations.</p></div>
+      <div class="sp"><div class="nm">Medical</div><p>Clinical information, symptom discussion, drug interactions, and health research in plain language. Informational, not a substitute for a physician.</p></div>
+      <div class="sp"><div class="nm">Legal</div><p>Contracts, statutes, case concepts, and jurisdiction-aware explanation of the law. Informational, not a substitute for an attorney.</p></div>
+      <div class="sp"><div class="nm">Financial</div><p>Markets, crypto, accounting, modelling, and strategy without disclaimers-first hedging. Informational, not personalized investment advice.</p></div>
+      <div class="sp"><div class="nm">Data</div><p>Analysis, cleaning, transformation, SQL, and statistics over your own datasets. Turns raw spreadsheets and CSVs into answers, tables, and charts.</p></div>
+      <div class="sp"><div class="nm">Writer</div><p>Long-form prose, scripts, copy, and editing with control over voice and style. From a single headline to a full manuscript.</p></div>
+      <div class="sp"><div class="nm">Translate</div><p>Accurate translation and localization across dozens of languages, including idiom and register. Preserves meaning, not word-for-word.</p></div>
+      <div class="sp"><div class="nm">Vision</div><p>Drop in screenshots, photos, diagrams, or documents and get instant analysis. Describe, extract, debug, or explain what's on screen.</p></div>
+      <div class="sp"><div class="nm">Image Gen</div><p>Generate images on demand from a text description. Concept art, mockups, illustrations, and visuals created in-chat.</p></div>
+      </div>
+    </div>    </div>
+
+    <div class="closer">
+      <a class="btn" href="/login">Get started →</a>
+    </div>
+
+    <footer>
+      <div class="row"><span>Uncensored intelligence</span><span>·</span><span>Crypto only</span><span>·</span><span>No email</span></div>
+      <div class="legal"><a id="lnd-terms">Terms &amp; Conditions</a><a id="lnd-privacy">Privacy Policy</a></div>
+      <div>© grams·ai</div>
+    </footer>
+  </section>
+
+<script>
+  // typed tagline (matches DarkAI sky-blue typewriter)
+  var TYPED="uncensored intelligence";
+  var el=document.getElementById("typed"), i=0;
+  (function tick(){
+    if(i<=TYPED.length){ el.textContent=TYPED.slice(0,i); i++; setTimeout(tick, 70); }
+  })();
+
+/* GRAMSAI_LANDING_LEGAL */
+(function(){
+  var T = [{"h": "1. Agreement to These Terms", "body": ["These Terms of Service and Acceptable Use Policy (collectively, the “Terms”) govern your access to and use of GramsAI (“GramsAI,” “the Service,” “we,” “us,” or “our”), an uncensored artificial-intelligence platform available at grams.chat, together with all related websites, application programming interfaces, software, features, and functionality.", "These Terms constitute a legally binding agreement between you and the operator of the Service. By accessing or using the Service in any manner, you acknowledge that you have read, understood, and agree to be bound by these Terms and by our Privacy Policy, which is incorporated herein by reference. If you do not agree to these Terms in their entirety, you must not access or use the Service.", "You affirm that you are at least eighteen (18) years of age, that you have the legal capacity to enter into these Terms, and that you are not barred from using the Service under the laws of any jurisdiction applicable to you."]}, {"h": "2. Definitions", "body": ["“Input” means any text, prompt, instruction, file, image, document, or other material you submit to the Service. “Output” means any material generated by the Service in response to Input. “Content” means Input and Output collectively. “Materials” means any software, code, instructions, designs, formulae, plans, or other materials, whether constituting Input, Output, or otherwise."]}, {"h": "3. Nature of the Service; Assumption of Risk", "body": ["The Service provides access to uncensored, general-purpose, probabilistic artificial-intelligence models that generate Content automatically in response to Input. The Service applies no editorial content filtering and does not moralise, refuse, or restrict Output on the basis of subject matter, save as required to enforce the absolute prohibitions in Section 6.", "You expressly acknowledge and accept that this is a rapidly evolving and experimental technology, and that Output may be inaccurate, false, incomplete, misleading, offensive, objectionable, harmful, or otherwise unsuitable for any purpose. Output is generated probabilistically and is not a statement of fact. The Service is not a truth machine, and you must not rely on Output as a sole source of truth or for any decision of consequence, including without limitation any medical, legal, financial, safety, or other professional decision.", "BY USING THE SERVICE, YOU RECOGNISE AND VOLUNTARILY ASSUME ALL RISKS ASSOCIATED WITH THE USE OF AN UNCENSORED, EXPERIMENTAL ARTIFICIAL-INTELLIGENCE SYSTEM, INCLUDING THE RISK THAT INPUT YOU PROVIDE MAY RESULT IN OUTPUT THAT YOU OR OTHERS CONSIDER OFFENSIVE, OBJECTIONABLE, OR HARMFUL."]}, {"h": "4. The Service Is a Neutral Conduit", "body": ["The Service is a neutral, automated tool. We do not author, originate, select, endorse, verify, adopt, or review any Content generated through the Service. We are not a participant in, contributor to, or publisher of any Content that you create using the Service.", "We do not monitor, pre-screen, or review user activity, and we do not retain logs of user conversations. We therefore have no knowledge of, and no practical means of knowing, what any individual user inputs, generates, stores, downloads, or distributes. You acknowledge that the absence of monitoring is a deliberate and fundamental privacy characteristic of the Service, and is not a representation, warranty, or assurance by us that any particular use of the Service is lawful, safe, or permissible."]}, {"h": "5. Your Sole Responsibility for Lawful Use", "body": ["You are solely, fully, and exclusively responsible for all of your activity on the Service, including every item of Input you submit and every item of Output you request, generate, store, download, publish, transmit, or distribute, and for all consequences arising therefrom.", "You are solely responsible for knowing, and for complying at all times with, every law, regulation, rule, sanction, and legal obligation that applies to you in every jurisdiction in which you live, reside, are physically located, are a citizen or national, or are otherwise subject to legal authority. You acknowledge that laws differ materially between, and within, jurisdictions, and that conduct lawful in one place may be unlawful in another.", "It is your obligation, and not ours, to ensure that your use of the Service is lawful for you. By accessing or using the Service, you represent and warrant that your use is and will remain lawful for you, and you agree that you will not use the Service for any purpose, or to produce, obtain, store, or distribute any Material, that is unlawful in any jurisdiction applicable to you. If any use of the Service would be unlawful for you, you must not engage in it.", "You bear sole responsibility for ensuring continuing compliance with the law, and you agree to indemnify us as set out in Section 9 in respect of any failure to do so."]}, {"h": "6. Prohibited Uses", "body": ["Notwithstanding the uncensored nature of the Service, the following uses are strictly and absolutely prohibited. These prohibitions apply regardless of intent, framing, jurisdiction, or claimed purpose, and any breach results in immediate termination of your right to use the Service and may be reported to appropriate authorities to the extent we are legally required to do so.", "(a) Child sexual exploitation. You may not use the Service to create, request, solicit, store, transmit, or distribute any material that sexually exploits, sexualises, abuses, or endangers a minor, including child sexual abuse material in any form whatsoever, whether real, simulated, drawn, described, or AI-generated. This prohibition is absolute and admits no exception.", "(b) Harm to people. You may not use the Service to plan, facilitate, encourage, or carry out violence against, the killing of, terrorism against, the trafficking of, the kidnapping of, the torture of, or serious physical or psychological harm to any person or group of persons.", "(c) Harm to children, animals, or protected places. You may not use the Service to facilitate, encourage, or produce material directed at causing harm to children, the abuse or torture of animals, or the damage, destruction, or desecration of protected, cultural, religious, or environmentally protected places or property.", "(d) Weapons and mass harm. You may not use the Service to develop, design, produce, acquire, or deploy weapons, explosives, or chemical, biological, radiological, or nuclear materials, or any other thing intended or reasonably likely to cause death, serious injury, or mass harm.", "(e) Harmful products, software, and services. You may not use the Service to design, produce, distribute, or facilitate any product, material, software, code, service, or instruction that is intended or reasonably likely to be used to cause harm to other persons, to children, to animals, or to places or property, including malicious software, intrusion tools, weapons-enabling designs, or instructions for synthesising or obtaining illegal or unlawfully regulated substances, goods, or services.", "(f) Unlawful and infringing conduct. You may not use the Service in any manner that violates applicable law; that infringes the intellectual-property, privacy, publicity, or other rights of any person; that constitutes fraud, deception, defamation, harassment, stalking, or non-consensual intimate imagery; or that misappropriates the identity or likeness of any person without lawful authority.", "(g) Attacks on the Service. You may not attack, probe, reverse-engineer, decompile, disrupt, overload, or attempt to circumvent the security, isolation, access controls, or safety measures of the Service or its infrastructure, nor use the Service to attack or compromise any other system.", "(h) Circumvention. You may not attempt to use the Service in any way designed to cause it to act in breach of these prohibitions."]}, {"h": "7. Disclaimer of Warranties", "body": ["THE SERVICE, INCLUDING ALL CONTENT AND OUTPUT, IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITH ALL FAULTS AND WITHOUT WARRANTY OF ANY KIND. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, WE EXPRESSLY DISCLAIM ALL WARRANTIES, REPRESENTATIONS, AND CONDITIONS, WHETHER EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE, INCLUDING WITHOUT LIMITATION ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY, AND ANY WARRANTY ARISING FROM COURSE OF DEALING OR USAGE OF TRADE.", "WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, SECURE, OR ERROR-FREE, OR THAT ANY OUTPUT WILL BE ACCURATE, COMPLETE, RELIABLE, LAWFUL, SAFE, OR SUITABLE FOR ANY PURPOSE. YOU USE THE SERVICE AND ANY OUTPUT ENTIRELY AT YOUR OWN RISK."]}, {"h": "8. Limitation of Liability", "body": ["TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE OPERATOR OF THE SERVICE, NOR ITS OWNERS, DIRECTORS, OFFICERS, MEMBERS, EMPLOYEES, CONTRACTORS, AGENTS, OR AFFILIATES (THE “PROTECTED PARTIES”), BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS, REVENUE, DATA, GOODWILL, OR OTHER INTANGIBLE LOSSES, ARISING OUT OF OR RELATING TO YOUR ACCESS TO OR USE OF, OR INABILITY TO ACCESS OR USE, THE SERVICE OR ANY CONTENT, WHETHER BASED ON WARRANTY, CONTRACT, TORT (INCLUDING NEGLIGENCE), STATUTE, OR ANY OTHER LEGAL THEORY, AND WHETHER OR NOT THE PROTECTED PARTIES HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.", "WITHOUT LIMITING THE FOREGOING, THE PROTECTED PARTIES SHALL HAVE NO LIABILITY WHATSOEVER FOR ANY CONTENT, INCLUDING ANY INPUT SUBMITTED BY YOU OR ANY OUTPUT GENERATED IN RESPONSE TO YOUR INPUT, NOR FOR ANY USE YOU OR ANY OTHER PERSON MAKES OF SUCH CONTENT. YOU ACKNOWLEDGE THAT WE HAVE NO KNOWLEDGE OF AND NO CONTROL OVER USER ACTIVITY, AND THAT YOU, AND NOT THE PROTECTED PARTIES, BEAR FULL AND SOLE RESPONSIBILITY AND LIABILITY FOR YOUR USE OF THE SERVICE AND ALL CONSEQUENCES OF THAT USE.", "TO THE EXTENT THAT LIABILITY CANNOT LAWFULLY BE EXCLUDED, THE AGGREGATE LIABILITY OF THE PROTECTED PARTIES ARISING OUT OF OR RELATING TO THE SERVICE SHALL NOT EXCEED THE GREATER OF (A) THE TOTAL AMOUNT YOU PAID TO USE THE SERVICE IN THE THREE (3) MONTHS IMMEDIATELY PRECEDING THE EVENT GIVING RISE TO THE CLAIM, OR (B) ONE HUNDRED UNITED STATES DOLLARS (USD 100). THE EXISTENCE OF MULTIPLE CLAIMS WILL NOT ENLARGE THIS LIMIT."]}, {"h": "9. Indemnification", "body": ["You agree to indemnify, defend, and hold harmless the Protected Parties from and against any and all claims, demands, actions, proceedings, liabilities, damages, losses, judgments, fines, penalties, costs, and expenses (including reasonable legal fees) arising out of or in any way connected with: (a) your access to or use of the Service; (b) your Content; (c) your violation of these Terms; (d) your violation of any law or the rights of any third party; or (e) any consequence of any of the foregoing. We reserve the right, at our own expense, to assume the exclusive defence and control of any matter otherwise subject to indemnification by you, in which event you will cooperate with us in asserting any available defences."]}, {"h": "10. Payments, Subscriptions, and Refunds", "body": ["The Service is paid for exclusively in cryptocurrency. By purchasing access, a subscription, a storage add-on, or any other paid feature, you authorise the corresponding charge in the cryptocurrency and amount presented to you at the time of purchase.", "All payments are final. Except where a refund is strictly required by applicable mandatory law, all fees and cryptocurrency payments are non-refundable and are not subject to credit, proration, or set-off, including in respect of unused time, partially used periods, or features you did not use. Because settlement occurs on public blockchains and pricing is denominated at the time of payment, we do not reverse, refund, or otherwise return cryptocurrency once a payment has been confirmed.", "Subscriptions, where offered, continue for the period purchased. You are responsible for managing your own access and for ceasing use before the end of a paid period if you do not wish to continue. We are not obliged to provide notice of expiry. We may change pricing prospectively; any change applies to purchases made after the change takes effect.", "You are responsible for any network, exchange, or transaction fees associated with making a cryptocurrency payment, and for sending the correct amount to the correct address. We are not responsible for funds lost due to user error, sending the wrong amount, sending after a quote has expired, or sending to an incorrect address."]}, {"h": "11. Cookies and Local Storage", "body": ["The Service uses only those cookies and local browser-storage mechanisms that are strictly necessary to authenticate your session, maintain your login, and operate the interface. These are essential to the functioning of the Service.", "The Service does not deploy advertising cookies, cross-site tracking technologies, or third-party behavioural-advertising mechanisms for the purpose of profiling you across services. Disabling strictly necessary cookies in your browser will prevent you from logging in to or using the Service as a registered user. By using the Service, you consent to the use of strictly necessary cookies and local storage as described in this section and in our Privacy Policy."]}, {"h": "12. Termination", "body": ["We may suspend, restrict, or terminate your access to the Service at any time, with or without notice and for any reason or no reason, including where we believe, in our sole discretion, that the Service is being used unlawfully or in violation of these Terms. Upon termination, the provisions of these Terms that by their nature should survive, including Sections 5 through 14, will continue in effect."]}, {"h": "13. Governing Terms, Dispute Resolution, and Severability", "body": ["These Terms, together with the Privacy Policy, constitute the entire agreement between you and the operator of the Service concerning the Service, and supersede all prior or contemporaneous understandings.", "If any provision of these Terms is held to be invalid, illegal, or unenforceable, that provision shall be enforced to the maximum extent permissible and the remaining provisions shall remain in full force and effect. Our failure to enforce any right or provision of these Terms shall not constitute a waiver of that or any other right or provision.", "You agree that any dispute arising out of or relating to these Terms or the Service shall be resolved on an individual basis, and you waive any right to participate in a class, collective, or representative action to the fullest extent permitted by law."]}, {"h": "14. Changes to These Terms", "body": ["We may revise these Terms at any time. The Effective Date indicates the current version. Material changes will be reflected by posting the revised Terms. Your continued use of the Service after any revision constitutes your acceptance of the revised Terms."]}], P = [{"h": "1. Introduction and Scope", "body": ["This Privacy Policy (“Policy”) describes how GramsAI (“GramsAI,” “the Service,” “we,” “us,” or “our”) handles information in connection with the privacy-focused, uncensored artificial-intelligence platform made available at grams.chat, together with all related websites, application programming interfaces, software, features, and functionality (collectively, the “Service”).", "This Policy forms part of, and is incorporated by reference into, our Terms of Service and Acceptable Use Policy (the “Terms”). By accessing or using the Service, you acknowledge that you have read and understood this Policy and the Terms, and you agree to be bound by them. If you do not agree, you must not access or use the Service.", "The Service is engineered around the principle of data minimisation: we are built so that we collect as little information as is technically necessary to operate, and so that we are not in possession of information that would allow us to identify you or reconstruct your activity. What follows describes both what we process and, equally importantly, what we deliberately do not collect, retain, or have the ability to access."]}, {"h": "2. Definitions", "body": ["“Personal Data” means any information relating to an identified or identifiable natural person.", "“Input” means any text, prompt, instruction, file, image, document, or other material that you submit to the Service.", "“Output” means any response, text, image, or other material generated by the Service in response to your Input.", "“Content” means Input and Output together.", "“Account” means the pseudonymous credential set (username and password) through which you access the Service."]}, {"h": "3. Our Core Privacy Commitments", "body": ["The following commitments are the foundation of the Service and govern the interpretation of this entire Policy:", "(a) No identity requirement. We do not require, request, or provide any field for an email address, telephone number, legal name, date of birth, government-issued identifier, or any other real-world identity attribute in order to register or use the Service.", "(b) No conversation logs. We do not keep logs of your conversations. We do not retain the content of your Input or Output on our systems in any form that we are able to read, search, reconstruct, or disclose.", "(c) Encryption. Content is encrypted in transit using industry-standard transport-layer security and is stored encrypted at rest within your isolated environment.", "(d) Isolation. Each user operates within a dedicated, per-user isolated environment. Your workspace, files, and stored materials are segregated from those of other users and are not pooled, mined, profiled, or read by us in the ordinary course of operating the Service.", "(e) No sale of data. We do not sell, rent, license, or otherwise make available your Personal Data or your Content to advertisers, data brokers, or other third parties for their own purposes."]}, {"h": "4. Information We Do Not Collect", "body": ["For the avoidance of doubt, and except strictly as described in Section 5, we do not collect or retain: the content of your conversations; behavioural profiles of you; advertising identifiers tied to your identity; your real name, email, or telephone number; your payment-card or bank-account details; or biometric identifiers.", "Because we do not retain conversation logs and operate per-user isolation, we have no practical knowledge of, and no means of reconstructing, what any individual user asks, generates, stores, or does on the Service. We are not able to produce a transcript of your conversations, because we do not hold one in a readable form."]}, {"h": "5. Limited Information We Process", "body": ["To operate the Service, secure it, and prevent fraud, abuse, and attacks, we process a narrowly limited set of technical information that any internet-facing service must necessarily handle. This may include transient connection metadata (such as an internet-protocol address used momentarily to route a request and to mitigate abuse), security signals, and minimal, non-content operational events necessary to keep the Service functioning.", "Such information is used solely to provide, maintain, and secure the Service and to detect and prevent abuse. It is not used to build a profile of you, to advertise to you, or to identify you, and it is retained only for so long as is necessary for those limited operational and security purposes.", "Payment is accepted exclusively in cryptocurrency. We do not process payment-card or bank details. Cryptocurrency settlement is performed through a payment-processing function; we receive only the minimal confirmation necessary to establish that a payment has cleared and to associate it with the corresponding Account. We do not receive a bank account number, payment-card number, or legal name through the payment flow."]}, {"h": "6. Processing Infrastructure", "body": ["Generation of Output is performed by artificial-intelligence model infrastructure operated for the Service under a strict zero-retention configuration, meaning that Input and Output are processed only for the time strictly necessary to generate and return a response and are not stored, retained, or used for any other purpose.", "We do not transmit your identity together with your Input, because we do not hold your identity. We do not use your Content to train, fine-tune, or improve any model, and we do not authorise the use of your Content for any such purpose."]}, {"h": "7. Cookies and Local Storage", "body": ["The Service uses only such cookies and local browser storage as are strictly necessary to authenticate your session and operate the interface. We do not deploy third-party advertising or cross-site tracking technologies for the purpose of profiling you across services."]}, {"h": "8. Disclosure", "body": ["Because we do not retain the content of your Content and operate per-user isolation, we are not in a position to disclose the content of your conversations to any party, including in response to legal process, as we do not possess it in a readable form.", "We may disclose the limited operational information described in Section 5 only where we reasonably believe disclosure is required to comply with a valid and binding legal obligation, to protect the rights, property, or safety of the Service or others, to enforce the Terms, or to investigate and prevent fraud, abuse, or attacks on the Service. We will disclose only the minimum information within our possession that is responsive to such an obligation. We cannot disclose information we do not hold."]}, {"h": "9. Security", "body": ["We employ reasonable technical and organisational measures designed to protect the limited information we process against loss, misuse, and unauthorised access. However, no method of electronic transmission or storage is perfectly secure, and we cannot and do not guarantee the absolute security of any information."]}, {"h": "10. Children", "body": ["The Service is intended exclusively for adults aged eighteen (18) years or older. The Service is not directed to, and may not be used by, children. We do not knowingly process information from any person under the age of eighteen. Any use of the Service by a minor is strictly prohibited and is a violation of the Terms."]}, {"h": "11. Your Responsibility", "body": ["The privacy architecture of the Service means that the responsibility for the lawful use of the Service rests entirely with you. Because we do not and cannot monitor your activity, you are solely responsible for ensuring that your use complies with all laws applicable to you. Please refer to the Terms of Service and Acceptable Use Policy for the full statement of your obligations."]}, {"h": "12. International Use", "body": ["The Service may be accessed from many jurisdictions. By using the Service, you accept that the limited operational processing described in this Policy may occur in jurisdictions other than the one in which you reside, and you are responsible for ensuring that your use of the Service is lawful in your own jurisdiction."]}, {"h": "13. Changes to this Policy", "body": ["We may amend this Policy from time to time. The Effective Date at the top of this Policy indicates when it was last revised. Any amendment becomes effective when posted. Your continued use of the Service after an amendment constitutes your acceptance of the amended Policy."]}, {"h": "14. Contact", "body": ["Questions regarding this Policy may be directed to us through the contact channels published at grams.chat."]}], EFF = "Effective Date: 12 June 2026";
+  function init(){
+    var ov=document.getElementById("lgl-ov"), body=document.getElementById("lgl-body"), title=document.getElementById("lgl-title");
+    var ot=document.getElementById("lnd-terms"), op=document.getElementById("lnd-privacy"), cb=document.getElementById("lgl-close");
+    if(!ov||!ot||!op||!cb) return;
+    function close(){ ov.classList.remove("show"); }
+    function open(which){
+      var data = which==="privacy" ? P : T;
+      title.textContent = which==="privacy" ? "Privacy Policy" : "Terms & Conditions";
+      var html='<div class="lgl-eff">'+EFF+'</div>';
+      for(var i=0;i<data.length;i++){ html+='<div class="lgl-h">'+data[i].h+'</div>';
+        for(var j=0;j<data[i].body.length;j++){ var t=data[i].body[j].replace(/&/g,'&amp;').replace(/</g,'&lt;'); html+='<p class="lgl-p">'+t+'</p>'; } }
+      body.innerHTML=html; body.scrollTop=0; ov.classList.add("show");
+    }
+    ot.addEventListener("click",function(e){e.preventDefault();open("terms");});
+    op.addEventListener("click",function(e){e.preventDefault();open("privacy");});
+    cb.addEventListener("click",close);
+    ov.addEventListener("click",function(e){ if(e.target===ov) close(); });
+    document.addEventListener("keydown",function(e){ if(e.key==="Escape") close(); });
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",init); else init();
+})();
+
+</script>
+<div id="lgl-ov">
+  <div class="lgl-box">
+    <div class="lgl-head"><span class="t" id="lgl-title">Terms &amp; Conditions</span><button class="x" id="lgl-close" type="button">Close</button></div>
+    <div class="lgl-body" id="lgl-body"></div>
+  </div>
+</div>
+</body>
+</html>

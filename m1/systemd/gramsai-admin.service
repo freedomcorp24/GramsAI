@@ -1,0 +1,21 @@
+[Unit]
+Description=GramsAI Admin API (localhost-only, behind Tor onion)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+# admin-api binds 127.0.0.1 ONLY — never exposed beyond M1 localhost.
+Environment=ADMIN_LISTEN=127.0.0.1:8081
+EnvironmentFile=/etc/gramsai/admin.env
+ExecStart=/opt/gramsai/bin/admin
+Restart=on-failure
+RestartSec=2
+# hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/run/gramsai
+
+[Install]
+WantedBy=multi-user.target

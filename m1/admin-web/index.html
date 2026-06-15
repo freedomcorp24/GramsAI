@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GramsAI Admin</title>
+<style>
+  :root{
+    --bg:#0a0c0f; --panel:#11151a; --panel2:#161b22; --line:#222a33;
+    --txt:#c9d4e0; --dim:#6b7886; --accent:#3fb950; --accent2:#58a6ff;
+    --warn:#d29922; --danger:#f85149; --mono: ui-monospace,"SFMono-Regular","Menlo","Consolas",monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:13px;line-height:1.5}
+  a{color:var(--accent2)}
+  .wrap{max-width:1280px;margin:0 auto;padding:24px}
+  header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:20px}
+  .brand{font-weight:700;letter-spacing:.5px}
+  .brand .dot{color:var(--accent)}
+  .muted{color:var(--dim)}
+  button{font-family:var(--mono);font-size:12px;cursor:pointer;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 12px}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);color:#05210c;border-color:var(--accent);font-weight:700}
+  button.ghost{background:transparent}
+  button.danger{border-color:#7d2622;color:var(--danger)}
+  button.danger:hover{background:#3d1513;border-color:var(--danger)}
+  button.sm{padding:4px 8px;font-size:11px}
+  input,select{font-family:var(--mono);font-size:13px;background:#0d1117;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%}
+  select{padding:5px 8px}
+  input:focus,select:focus{outline:none;border-color:var(--accent2)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin:0 0 14px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);font-size:12px;vertical-align:middle}
+  th{color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.5px;font-size:10px}
+  td .sub{color:var(--dim);font-size:11px}
+  .row{display:flex;gap:8px;align-items:center}
+  .tag{display:inline-block;padding:2px 7px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+  .tag.basic{color:var(--dim)} .tag.pro{color:var(--accent2);border-color:#1f6feb55}
+  .tag.max{color:var(--warn);border-color:#bb800955} .tag.ultra{color:var(--accent);border-color:#2ea04355}
+  .tag.active{color:var(--accent);border-color:#2ea04355}
+  .tag.suspended{color:var(--danger);border-color:#7d262255;background:#2a1413}
+  .tag.unlimited{color:var(--accent2);border-color:#1f6feb55;background:#0d1f33}
+  .tag.exp{color:var(--warn);border-color:#bb800955}
+  .tag.nosub{color:var(--dim)}
+  .bar{height:5px;background:#0d1117;border-radius:3px;overflow:hidden;margin-top:4px}
+  .bar i{display:block;height:100%;background:var(--accent)}
+  .bar i.hot{background:var(--danger)}
+  .login{max-width:340px;margin:14vh auto}
+  .login .card{padding:26px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:11px;color:var(--dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+  .err{color:var(--danger);font-size:12px;min-height:16px;margin-top:4px}
+  .tok{font-size:11px;color:var(--accent);word-break:break-all;background:#0d1117;padding:8px;border-radius:6px;border:1px solid var(--line);margin-top:6px}
+  .editrow input{width:90px;display:inline-block}
+  .tabs{display:flex;gap:6px;margin-bottom:18px}
+  .tabs button{border-radius:6px}
+  .tabs button.on{background:var(--panel2);border-color:var(--accent)}
+  .hide{display:none}
+  .right{text-align:right}
+  .flexsp{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .acts{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:340px}
+  .toast{position:fixed;bottom:20px;right:20px;background:var(--panel2);border:1px solid var(--accent);padding:10px 16px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;font-size:12px}
+  .toast.show{opacity:1}.toast.bad{border-color:var(--danger);color:var(--danger)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- LOGIN -->
+  <div id="login" class="login hide">
+    <div class="card">
+      <div class="brand" style="font-size:18px;margin-bottom:18px">grams<span class="dot">·</span>ai <span class="muted" style="font-size:11px">admin</span></div>
+      <div class="field"><label>User</label><input id="lu" autocomplete="username"></div>
+      <div class="field"><label>Password</label><input id="lp" type="password" autocomplete="current-password"></div>
+      <button class="primary" style="width:100%" id="lbtn">Authenticate</button>
+      <div class="err" id="lerr"></div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dash" class="hide">
+    <header>
+      <div class="brand" style="font-size:16px">grams<span class="dot">·</span>ai <span class="muted" style="font-size:11px">admin</span></div>
+      <div class="row"><span class="muted" id="who"></span><button class="ghost" id="logout">Logout</button></div>
+    </header>
+
+    <div class="tabs">
+      <button class="on" data-tab="users">Users</button>
+      <button data-tab="tiers">Tier Defaults</button>
+      <button data-tab="usage">Usage Log</button>
+      <button data-tab="payments">Payments</button>
+    </div>
+
+    <!-- USERS -->
+    <div id="tab-users" class="card">
+      <div class="flexsp"><h2 style="margin:0">Users &amp; Access</h2><button class="ghost" id="refreshU">Refresh</button></div>
+      <table>
+        <thead><tr><th>ID</th><th>User</th><th>Tier</th><th>Status</th><th>Sub / Access</th><th>Budget</th><th>Used</th><th>Daily</th><th>Token</th><th></th></tr></thead>
+        <tbody id="utbody"></tbody>
+      </table>
+    </div>
+
+    <!-- TIERS -->
+    <div id="tab-tiers" class="card hide">
+      <div class="flexsp"><h2 style="margin:0">Tier Defaults</h2><button class="ghost" id="refreshT">Refresh</button></div>
+      <p class="muted" style="font-size:11px;margin-top:0">Applied when you set a user to a tier. Values in USD; stored as micro-dollars.</p>
+      <table>
+        <thead><tr><th>Tier</th><th>Budget (USD)</th><th>Daily limit (USD)</th><th></th></tr></thead>
+        <tbody id="ttbody"></tbody>
+      </table>
+      <div class="row" style="margin-top:14px">
+        <input id="ntier" placeholder="tier name" style="width:120px">
+        <input id="nbud" placeholder="budget $" style="width:110px">
+        <input id="ndaily" placeholder="daily $" style="width:110px">
+        <button class="primary" id="addtier">Set tier</button>
+      </div>
+    </div>
+
+    <!-- USAGE -->
+    <div id="tab-usage" class="card hide">
+      <div class="flexsp"><h2 style="margin:0">Recent Usage</h2><button class="ghost" id="refreshL">Refresh</button></div>
+      <table>
+        <thead><tr><th>Time</th><th>User</th><th>Specialty</th><th>In</th><th>Out</th><th class="right">Cost</th></tr></thead>
+        <tbody id="ltbody"></tbody>
+      </table>
+    </div>
+
+    <!-- PAYMENTS -->
+    <div id="tab-payments" class="card hide">
+      <div class="flexsp"><h2 style="margin:0">Payments <span id="revtot" class="muted" style="font-size:12px;font-weight:400"></span></h2><button class="ghost" id="refreshP">Refresh</button></div>
+      <table>
+        <thead><tr><th>Time</th><th>User</th><th>Kind</th><th>Plan</th><th class="right">Amount</th><th>Coin</th><th>Status</th></tr></thead>
+        <tbody id="ptbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const api=async(p,opt={})=>{
+  const r=await fetch("/api"+p,{credentials:"same-origin",headers:{"Content-Type":"application/json"},...opt});
+  if(r.status===401){show("login");throw new Error("unauth");}
+  if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||("HTTP "+r.status));
+  return r.status===204?null:r.json();
+};
+const usd=m=>"$"+(m/1e6).toFixed(m<1e6?6:2);
+const dollarsToMicros=d=>Math.round(parseFloat(d||"0")*1e6);
+const TIERS=["basic","pro","max","ultra"];
+function show(v){$("#login").classList.toggle("hide",v!=="login");$("#dash").classList.toggle("hide",v!=="dash");}
+function toast(m,bad){const t=$("#toast");t.textContent=m;t.className="toast show"+(bad?" bad":"");setTimeout(()=>t.className="toast"+(bad?" bad":""),2200);}
+
+// login
+$("#lbtn").onclick=async()=>{
+  $("#lerr").textContent="";
+  try{await api("/login",{method:"POST",body:JSON.stringify({User:$("#lu").value,Pass:$("#lp").value})});boot();}
+  catch(e){$("#lerr").textContent="Invalid credentials";}
+};
+$("#lp").addEventListener("keydown",e=>{if(e.key==="Enter")$("#lbtn").click();});
+$("#logout").onclick=async()=>{await api("/logout",{method:"POST"});show("login");};
+
+// tabs
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on");
+  ["users","tiers","usage","payments"].forEach(t=>$("#tab-"+t).classList.toggle("hide",t!==b.dataset.tab));
+  if(b.dataset.tab==="payments")loadPayments();
+});
+
+// access/sub cell
+function subCell(x){
+  if(x.Unmetered) return '<span class="tag unlimited">unlimited</span>';
+  if(!x.PaidUntil) return '<span class="tag nosub">no sub</span>';
+  const d=new Date(x.PaidUntil), now=new Date();
+  const day=d.toISOString().slice(0,10);
+  return d>now ? '<span class="tag active">'+day+'</span>' : '<span class="tag exp">exp '+day+'</span>';
+}
+
+// users
+async function loadUsers(){
+  const u=await api("/users");
+  $("#utbody").innerHTML="";
+  u.forEach(x=>{
+    const pct=x.BudgetMicros>0?Math.min(100,Math.round(x.UsedMicros/x.BudgetMicros*100)):0;
+    const susp=x.Status==="suspended";
+    let tierSel='<select data-tiersel="'+x.ID+'">';
+    TIERS.forEach(t=>tierSel+='<option'+(x.Tier===t?" selected":"")+'>'+t+'</option>');
+    tierSel+='</select>';
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td>${x.ID}</td>
+      <td>${esc(x.Username)}<div class="sub">${esc(x.Email||"")}</div></td>
+      <td>${tierSel}</td>
+      <td><span class="tag ${susp?'suspended':'active'}">${susp?'suspended':'active'}</span></td>
+      <td>${subCell(x)}</td>
+      <td class="editrow"><input value="${(x.BudgetMicros/1e6).toFixed(2)}" data-f="bud"></td>
+      <td>${usd(x.UsedMicros)}<div class="bar"><i class="${pct>85?'hot':''}" style="width:${pct}%"></i></div></td>
+      <td class="editrow"><input value="${(x.DailyLimitMicros/1e6).toFixed(2)}" data-f="daily"></td>
+      <td>${x.HasToken?'<span class="tag" style="color:var(--accent)">set</span>':'<span class="tag">none</span>'}</td>
+      <td><div class="acts">
+        <button class="sm" data-save="${x.ID}">Save $</button>
+        <button class="sm" data-addt="${x.ID}" data-days="30">+30d</button>
+        <button class="sm" data-addt="${x.ID}" data-days="365">+1y</button>
+        <button class="sm" data-addc="${x.ID}">+…</button>
+        <button class="sm" data-unm="${x.ID}" data-on="${x.Unmetered?0:1}">${x.Unmetered?'meter':'unlimited'}</button>
+        <button class="sm" data-token="${x.ID}">Mint</button>
+        <button class="sm ${susp?'':'danger'}" data-susp="${x.ID}" data-on="${susp?0:1}">${susp?'unsuspend':'suspend'}</button>
+        <button class="sm danger" data-del="${x.ID}" data-name="${esc(x.Username)}">del</button>
+      </div><div class="tok hide" id="tok-${x.ID}"></div></td>`;
+    $("#utbody").appendChild(tr);
+  });
+  // wire actions
+  const tb=$("#utbody");
+  tb.querySelectorAll("[data-tiersel]").forEach(s=>s.onchange=async()=>{
+    try{await api("/user/tier",{method:"POST",body:JSON.stringify({id:+s.dataset.tiersel,tier:s.value})});toast("tier → "+s.value);loadUsers();}
+    catch(e){toast("failed",true);}
+  });
+  tb.querySelectorAll("[data-save]").forEach(b=>b.onclick=async()=>{
+    const id=+b.dataset.save,tr=b.closest("tr");
+    const bud=dollarsToMicros(tr.querySelector('[data-f=bud]').value);
+    const daily=dollarsToMicros(tr.querySelector('[data-f=daily]').value);
+    b.textContent="…";
+    try{await api("/user/budget",{method:"POST",body:JSON.stringify({id,budget_micros:bud,daily_limit_micros:daily})});b.textContent="✓";setTimeout(()=>b.textContent="Save $",1200);}
+    catch(e){b.textContent="err";}
+  });
+  tb.querySelectorAll("[data-addt]").forEach(b=>b.onclick=()=>addTime(+b.dataset.addt,+b.dataset.days));
+  tb.querySelectorAll("[data-addc]").forEach(b=>b.onclick=()=>{
+    const d=prompt("Days to add (negative to revoke):","90");if(d===null)return;
+    const n=parseInt(d,10);if(isNaN(n)){toast("invalid",true);return;}addTime(+b.dataset.addc,n);
+  });
+  tb.querySelectorAll("[data-unm]").forEach(b=>b.onclick=async()=>{
+    const on=b.dataset.on==="1";
+    try{await api("/user/unmetered",{method:"POST",body:JSON.stringify({id:+b.dataset.unm,unmetered:on})});toast(on?"unlimited on":"metered");loadUsers();}
+    catch(e){toast("failed",true);}
+  });
+  tb.querySelectorAll("[data-token]").forEach(b=>b.onclick=async()=>{
+    const id=+b.dataset.token;
+    if(!confirm("Mint a NEW token for user "+id+"? This invalidates the old one."))return;
+    const r=await api("/user/token",{method:"POST",body:JSON.stringify({id})});
+    const el=$("#tok-"+id);el.textContent=r.token;el.classList.remove("hide");
+  });
+  tb.querySelectorAll("[data-susp]").forEach(b=>b.onclick=async()=>{
+    const on=b.dataset.on==="1";
+    if(on&&!confirm("Suspend user "+b.dataset.susp+"? Container stops immediately."))return;
+    try{await api("/user/suspend",{method:"POST",body:JSON.stringify({id:+b.dataset.susp,suspend:on})});toast(on?"suspended":"unsuspended");loadUsers();}
+    catch(e){toast("failed",true);}
+  });
+  tb.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{
+    const id=+b.dataset.del,name=b.dataset.name;
+    if(!confirm('DELETE "'+name+'" (id '+id+')? Removes account, container, sessions, usage. Cannot be undone.'))return;
+    if(!confirm("Final confirm: delete "+name+"?"))return;
+    try{await api("/user/delete",{method:"POST",body:JSON.stringify({id})});toast("deleted");loadUsers();}
+    catch(e){toast("failed",true);}
+  });
+}
+async function addTime(id,days){
+  try{const r=await api("/user/addtime",{method:"POST",body:JSON.stringify({id,days})});toast((days<0?"":"+")+days+"d → "+new Date(r.paid_until).toISOString().slice(0,10));loadUsers();}
+  catch(e){toast("failed",true);}
+}
+
+// tiers
+async function loadTiers(){
+  const t=await api("/tiers");
+  $("#ttbody").innerHTML="";
+  t.forEach(x=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td><span class="tag ${x.Tier}">${esc(x.Tier)}</span></td>
+      <td class="editrow"><input value="${(x.BudgetMicros/1e6).toFixed(2)}" data-f="bud"></td>
+      <td class="editrow"><input value="${(x.DailyLimitMicros/1e6).toFixed(2)}" data-f="daily"></td>
+      <td class="right"><button data-tier="${esc(x.Tier)}">Save</button></td>`;
+    $("#ttbody").appendChild(tr);
+  });
+  $("#ttbody").querySelectorAll("[data-tier]").forEach(b=>b.onclick=async()=>{
+    const tier=b.dataset.tier,tr=b.closest("tr");
+    const bud=dollarsToMicros(tr.querySelector('[data-f=bud]').value);
+    const daily=dollarsToMicros(tr.querySelector('[data-f=daily]').value);
+    b.textContent="…";
+    try{await api("/tiers",{method:"POST",body:JSON.stringify({tier,budget_micros:bud,daily_limit_micros:daily})});b.textContent="✓";setTimeout(()=>b.textContent="Save",1200);}catch(e){b.textContent="err";}
+  });
+}
+$("#addtier").onclick=async()=>{
+  const tier=$("#ntier").value.trim();if(!tier)return;
+  await api("/tiers",{method:"POST",body:JSON.stringify({tier,budget_micros:dollarsToMicros($("#nbud").value),daily_limit_micros:dollarsToMicros($("#ndaily").value)})});
+  $("#ntier").value=$("#nbud").value=$("#ndaily").value="";loadTiers();
+};
+
+// usage
+async function loadUsage(){
+  const l=await api("/usage?limit=100");
+  $("#ltbody").innerHTML="";
+  l.forEach(x=>{
+    const tr=document.createElement("tr");
+    const t=new Date(x.CreatedAt).toLocaleString();
+    tr.innerHTML=`<td class="muted">${esc(t)}</td><td>${x.UserID}</td><td>${esc(x.Specialty)}</td>
+      <td>${x.InTok}</td><td>${x.OutTok}</td><td class="right">${usd(x.CostMicros)}</td>`;
+    $("#ltbody").appendChild(tr);
+  });
+}
+
+async function loadPayments(){
+  const r=await api("/payments?limit=200");
+  $("#revtot").textContent="· revenue "+usd(r.revenue_cents*10000);
+  $("#ptbody").innerHTML="";
+  (r.payments||[]).forEach(x=>{
+    const tr=document.createElement("tr");
+    const t=new Date(x.CreatedAt).toLocaleString();
+    const plan=x.Kind==="topup"?"—":(esc(x.Tier)+(x.Period?(" / "+esc(x.Period)):""));
+    const amt="$"+(x.PriceCents/100).toFixed(2);
+    const sc=x.Status==="finished"||x.Status==="applied"||x.Status==="confirmed"?"#3fb950":(x.Status==="failed"||x.Status==="expired"?"#da3633":"#888");
+    tr.innerHTML=`<td class="muted">${esc(t)}</td><td>${esc(x.Username)}</td><td>${esc(x.Kind)}</td>
+      <td>${plan}</td><td class="right">${amt}</td><td>${esc(x.PayCoin||"—").toUpperCase()}</td>
+      <td style="color:${sc}">${esc(x.Status)}</td>`;
+    $("#ptbody").appendChild(tr);
+  });
+}
+$("#refreshU").onclick=loadUsers;$("#refreshT").onclick=loadTiers;$("#refreshL").onclick=loadUsage;$("#refreshP").onclick=loadPayments;
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+async function boot(){
+  try{const me=await api("/me");$("#who").textContent=me.user;show("dash");loadUsers();loadTiers();loadUsage();}
+  catch(e){show("login");}
+}
+boot();
+</script>
+</body>
+</html>

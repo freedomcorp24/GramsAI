@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>grams</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon-v3.svg" />
+    <link rel="icon" type="image/png" href="/favicon-96x96-v3.png" sizes="96x96" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-v3.png" />
+<style>
+  :root{
+    --bg:#0a0c0f; --panel:#0e1218; --line:#222a33; --txt:#e6edf3;
+    --dim:#7d8896; --accent:#3fb950; --accent2:#58a6ff; --danger:#f85149;
+    --field:#0b0f14;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SFMono-Regular","Menlo","Consolas",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg);color:var(--txt);font-family:var(--sans);
+    min-height:100dvh;display:flex;
+  }
+  /* ---- left auth pane ---- */
+  /* GRAMSAI_LOGIN_V2 */
+  .pane{
+    flex:0 0 33.4%;min-width:0;display:flex;align-items:center;justify-content:flex-start;
+    padding:40px 28px 40px 44px;
+  }
+  .box{width:min(100%,380px)}
+  .brand{display:flex;align-items:center;gap:11px;margin-bottom:46px}
+  .brand .mark{
+    width:34px;height:34px;flex:0 0 auto;border-radius:9px;
+    display:grid;place-items:center;
+    background:linear-gradient(150deg,#163b22,#0e1a12);border:1px solid #1f5132;
+  }
+  .brand .mark svg{width:20px;height:20px;display:block}
+  .brand .name{font-size:15px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+  .brand .name .dot{color:var(--accent)}
+  h1{font-size:38px;line-height:1.12;font-weight:800;letter-spacing:-.02em;margin:0 0 14px}
+  .sub{color:var(--dim);font-size:14px;line-height:1.55;margin:0 0 30px}
+  label{display:block;font-size:13px;color:#c3ccd6;margin:0 0 8px;font-weight:500}
+  .field{position:relative;margin-bottom:18px}
+  input{
+    width:100%;background:var(--field);border:1px solid var(--line);border-radius:10px;
+    color:var(--txt);font-family:var(--sans);font-size:15px;padding:13px 14px;
+    transition:border-color .15s,box-shadow .15s;
+  }
+  input::placeholder{color:#4a5562}
+  input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px #3fb95022}
+  .eye{
+    position:absolute;right:10px;top:50%;transform:translateY(-50%);
+    width:30px;height:30px;border:0;background:transparent;color:var(--dim);
+    cursor:pointer;display:grid;place-items:center;border-radius:7px;
+  }
+  .eye:hover{color:var(--txt);background:#ffffff0d}
+  .eye svg{width:18px;height:18px}
+  .row{display:flex;align-items:center;justify-content:space-between;margin:2px 0 22px}
+  .remember{display:flex;align-items:center;gap:8px;color:var(--dim);font-size:13px;cursor:pointer;user-select:none}
+  .remember input{width:16px;height:16px;margin:0;accent-color:var(--accent);cursor:pointer}
+  .link{color:var(--accent);font-size:13px;text-decoration:none;cursor:pointer;background:none;border:0;font-family:inherit;padding:0}
+  .link:hover{text-decoration:underline}
+  .btn{
+    width:100%;border:0;border-radius:10px;background:var(--accent);color:#04210c;
+    font-family:var(--sans);font-weight:700;font-size:15px;padding:14px;cursor:pointer;
+    transition:filter .15s,box-shadow .15s;box-shadow:0 8px 30px -10px #3fb95099;
+  }
+  .btn:hover{filter:brightness(1.07)}
+  .btn:disabled{opacity:.6;cursor:default;box-shadow:none}
+  .err{color:var(--danger);font-size:13px;min-height:18px;margin-top:12px;text-align:center}
+  .divider{display:flex;align-items:center;gap:14px;color:var(--dim);font-size:13px;margin:26px 0}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+  .social{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .social button{
+    height:48px;border:1px solid var(--line);background:#0e131a;border-radius:10px;
+    cursor:pointer;display:grid;place-items:center;transition:background .15s,border-color .15s;
+  }
+  .social button:hover{background:#141b24;border-color:#2c3744}
+  .social svg{width:20px;height:20px;display:block}
+  .foot{text-align:center;color:var(--dim);font-size:13px;margin-top:28px}
+  .foot .link{font-weight:600}
+  /* ---- right cosmic pane ---- */
+  .art{
+    flex:1 1 66.6%;min-width:0;position:relative;overflow:hidden;
+    background:#05070a;
+  }
+  .art svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+  /* GRAMSAI_LOGIN_BG */
+  .art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block}
+  .art::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--bg) 0%,rgba(10,12,15,.55) 14%,rgba(10,12,15,.12) 34%,transparent 55%)}
+  /* GRAMSAI_MOBILE_FIX */
+  @media (max-width:880px){
+    body{display:block;min-height:100dvh}
+    .art{
+      display:block;position:relative;width:100%;height:42vh;flex:none;
+    }
+    .art img,.art svg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
+    .art::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,12,15,0) 40%,rgba(10,12,15,.5) 75%,var(--bg) 100%)}
+    .pane{
+      display:block;width:100%;flex:none;
+      padding:26px 22px 48px;background:transparent;
+    }
+    .box{width:100%;max-width:420px;margin:0 auto}
+  }
+  /* GRAMSAI_CONSENT */
+  #consent-block{display:none;margin:6px 0 14px}
+  #consent-block.show{display:block}
+  .consent-row{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:var(--dim);line-height:1.5}
+  .consent-row input{margin-top:2px;flex:0 0 auto;width:15px;height:15px;accent-color:var(--accent)}
+  .consent-row input:disabled{opacity:.4;cursor:not-allowed}
+  .consent-row a{color:var(--accent);text-decoration:none;cursor:pointer}
+  .consent-row a:hover{text-decoration:underline}
+  .consent-hint{margin:6px 0 0 24px;font-size:11px;color:#6b7682}
+  #lgl-ov{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.6);align-items:center;justify-content:center;padding:24px}
+  #lgl-ov.show{display:flex}
+  .lgl-box{background:#16181d;border:1px solid #2a2f37;border-radius:14px;max-width:720px;width:100%;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 24px 60px -16px rgba(0,0,0,.7)}
+  .lgl-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #2a2f37}
+  .lgl-head .t{font-weight:600;font-size:16px;color:#e8eaed}
+  .lgl-head .x{background:transparent;border:0;color:#8b939c;font-size:13px;cursor:pointer;padding:4px 8px}
+  .lgl-body{overflow:auto;padding:18px 22px}
+  .lgl-eff{font-size:12px;font-style:italic;color:#8b939c;margin-bottom:16px}
+  .lgl-h{font-weight:600;font-size:14px;color:#e8eaed;margin:0 0 7px}
+  .lgl-p{font-size:13px;line-height:1.6;color:#c7ccd1;margin:0 0 10px}
+  .lgl-foot{padding:10px 20px;border-top:1px solid #2a2f37;font-size:11px;color:#6b7682;text-align:center}
+</style>
+</head>
+<body>
+  <div class="pane">
+    <div class="box">
+      <div class="brand">
+        <span class="mark">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z" stroke="#3fb950" stroke-width="1.6" stroke-linejoin="round"/>
+            <text x="12" y="12" text-anchor="middle" dominant-baseline="central" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="11" font-weight="800" fill="#3fb950">g</text>
+          </svg>
+        </span>
+        <span class="name">GRAMS<span class="dot">.</span>AI</span>
+      </div>
+
+      <h1>Access the power<br>of AI</h1>
+      <p class="sub" id="sub">Sign in to unlock the full potential of grams.</p>
+
+<div id="cred-block">
+      <label for="u" id="lbl-u">Username</label>
+      <div class="field">
+        <input id="u" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="your handle">
+      </div>
+
+      <label for="p">Password</label>
+      <div class="field">
+        <input id="p" type="password" autocomplete="current-password" placeholder="••••••••">
+        <button class="eye" id="eye" type="button" aria-label="Show password">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="row">
+        <label class="remember"><input type="checkbox" id="remember">Remember me</label>
+        <button class="link" type="button" id="forgot">Forgot password?</button>
+      </div>
+
+      <div id="consent-block">
+        <label class="consent-row">
+          <input type="checkbox" id="consent" disabled>
+          <span>I am at least 18 years old and I agree to the <a id="open-terms">Terms &amp; Conditions</a>.</span>
+        </label>
+        <div class="consent-hint" id="consent-hint">Open and read the Terms &amp; Conditions to continue.</div>
+      </div>
+      <button class="btn" id="go">Sign in</button>
+      <div class="err" id="err"></div>
+
+      <div class="divider">or continue with</div>
+      <div class="social">
+        <button type="button" aria-label="Google">
+          <svg viewBox="0 0 24 24"><path fill="#EA4335" d="M12 10.2v3.9h5.5c-.24 1.4-1.7 4.1-5.5 4.1-3.3 0-6-2.7-6-6.1s2.7-6.1 6-6.1c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.9 3.4 14.7 2.5 12 2.5 6.9 2.5 2.8 6.6 2.8 11.7S6.9 21 12 21c5.3 0 8.8-3.7 8.8-9 0-.6-.06-1-.15-1.5H12Z"/></svg>
+        </button>
+        <button type="button" aria-label="GitHub">
+          <svg viewBox="0 0 24 24"><path fill="#e6edf3" d="M12 2C6.5 2 2 6.6 2 12.2c0 4.5 2.9 8.3 6.8 9.6.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.4-3.4-1.4-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.07-.6.07-.6 1 .07 1.5 1.05 1.5 1.05.9 1.5 2.3 1.1 2.9.85.09-.66.35-1.1.6-1.36-2.2-.26-4.6-1.13-4.6-5.02 0-1.1.4-2 1.05-2.7-.1-.26-.45-1.3.1-2.7 0 0 .85-.27 2.8 1.03a9.6 9.6 0 0 1 5.1 0c1.95-1.3 2.8-1.03 2.8-1.03.55 1.4.2 2.44.1 2.7.65.7 1.05 1.6 1.05 2.7 0 3.9-2.4 4.75-4.6 5 .35.3.67.9.67 1.8v2.7c0 .3.2.6.7.5 3.9-1.3 6.8-5.1 6.8-9.6C22 6.6 17.5 2 12 2Z"/></svg>
+        </button>
+        <button type="button" aria-label="Microsoft">
+          <svg viewBox="0 0 24 24"><path fill="#F25022" d="M3 3h8.4v8.4H3z"/><path fill="#7FBA00" d="M12.6 3H21v8.4h-8.4z"/><path fill="#00A4EF" d="M3 12.6h8.4V21H3z"/><path fill="#FFB900" d="M12.6 12.6H21V21h-8.4z"/></svg>
+        </button>
+      </div>
+
+      <div class="foot">
+        <span id="foot-q">Don't have an account?</span>
+        <button class="link" type="button" id="toggle">Sign up</button>
+      </div>
+      </div>
+
+      <!-- GRAMSAI_RESET: forgot-password via recovery code (hidden until needed) -->
+      <div id="reset-wrap" style="display:none">
+        <label for="r-user">Username</label>
+        <div class="field">
+          <input id="r-user" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="your handle">
+        </div>
+        <label for="r-code">Recovery code</label>
+        <div class="field">
+          <input id="r-code" autocapitalize="off" spellcheck="false" placeholder="XXXXX-XXXXX">
+        </div>
+        <label for="r-pw">New password</label>
+        <div class="field">
+          <input id="r-pw" type="password" autocomplete="new-password" placeholder="at least 8 characters">
+        </div>
+        <button class="btn" id="r-go">Reset password</button>
+        <div class="err" id="r-err"></div>
+        <div class="foot" style="margin-top:14px">
+          <button class="link" type="button" id="r-back">Back to sign in</button>
+        </div>
+      </div>
+
+      <!-- GRAMSAI_2FA_LOGIN: challenge step (hidden until needed) -->
+      <div id="totp-wrap" style="display:none">
+        <label for="totp" id="totp-label">Authentication code</label>
+        <div class="field">
+          <input id="totp" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="11" autocapitalize="off" spellcheck="false">
+        </div>
+        <button class="btn" id="totp-go">Verify</button>
+        <div class="err" id="totp-err"></div>
+        <div class="foot" style="margin-top:14px">
+          <button class="link" type="button" id="totp-recovery">Use a recovery code instead</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="art" aria-hidden="true">
+    <img src="/assets/subscribe-bg-v1.jpg" alt="">
+  </div>
+
+<script>
+  var mode="login";
+  var $=function(s){return document.querySelector(s)};
+
+  function setMode(m){
+    mode=m;
+    var login=m==="login";
+    $("#go").textContent=login?"Sign in":"Create account";
+    var cb=document.getElementById("consent-block"); if(cb) cb.classList.toggle("show", !login);
+    if(login){ var cc=document.getElementById("consent"); if(cc){ cc.checked=false; } }
+    $("#sub").textContent=login
+      ? "Sign in to unlock the full potential of grams."
+      : "Create an account to unlock the full potential of grams.";
+    $("#foot-q").textContent=login?"Don't have an account?":"Already have an account?";
+    $("#toggle").textContent=login?"Sign up":"Sign in";
+    $("#p").setAttribute("autocomplete",login?"current-password":"new-password");
+    $("#err").textContent="";
+  }
+  $("#toggle").onclick=function(){setMode(mode==="login"?"signup":"login")};
+
+  // show/hide password
+  $("#eye").onclick=function(){
+    var p=$("#p");
+    p.type=p.type==="password"?"text":"password";
+  };
+
+  // forgot password -> show the recovery-code reset form
+  function showReset(){
+    $("#cred-block").style.display="none";
+    var tw=$("#totp-wrap"); if(tw) tw.style.display="none";
+    $("#sub").textContent="Reset your password with a 2FA recovery code.";
+    $("#reset-wrap").style.display="block";
+    setTimeout(function(){$("#r-user").focus()},50);
+  }
+  function hideReset(){
+    $("#reset-wrap").style.display="none";
+    $("#cred-block").style.display="block";
+    $("#sub").textContent="Sign in to unlock the full potential of grams.";
+    $("#r-err").textContent="";
+  }
+  $("#forgot").onclick=function(){ showReset(); };
+  $("#r-back").onclick=function(){ hideReset(); };
+  async function submitReset(){
+    $("#r-err").style.color="var(--danger)";
+    var u=$("#r-user").value.trim(), c=$("#r-code").value.trim(), p=$("#r-pw").value;
+    if(!u||!c||!p){$("#r-err").textContent="Fill in all fields";return;}
+    if(p.length<8){$("#r-err").textContent="New password must be at least 8 characters";return;}
+    $("#r-go").disabled=true;$("#r-err").textContent="";
+    try{
+      var r=await fetch("/auth/reset",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        credentials:"same-origin",
+        body:JSON.stringify({username:u,recovery_code:c,new_password:p})
+      });
+      var d={};try{d=await r.json()}catch(e){}
+      if(!r.ok){$("#r-err").textContent=d.error||("error "+r.status);$("#r-go").disabled=false;return;}
+      $("#r-err").style.color="var(--accent)";
+      $("#r-err").textContent="Password reset. You can sign in now.";
+      setTimeout(function(){ hideReset(); }, 1400);
+    }catch(e){$("#r-err").textContent="network error";$("#r-go").disabled=false;}
+  }
+  $("#r-go").onclick=submitReset;
+  $("#r-pw").addEventListener("keydown",function(e){if(e.key==="Enter")submitReset()});
+
+  var pendingTok="";
+  var recoveryMode=false;
+
+  function showTotp(){
+    $("#cred-block").style.display="none";
+    $("#sub").textContent="Enter the code from your authenticator app.";
+    $("#totp-wrap").style.display="block";
+    setTimeout(function(){$("#totp").focus()},50);
+  }
+
+  async function submit(){
+    $("#err").style.color="var(--danger)";
+    var u=$("#u").value.trim(), p=$("#p").value;
+    if(!u||!p){$("#err").textContent="Enter username and password";return;}
+    if(mode!=="login"){ var cc=document.getElementById("consent"); if(!cc||!cc.checked){$("#err").textContent="Please read and accept the Terms & Conditions to create an account";return;} } /* GRAMSAI_CONSENT */
+    $("#go").disabled=true;$("#err").textContent="";
+    try{
+      var r=await fetch("/auth/"+(mode==="login"?"login":"register"),{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        credentials:"same-origin",body:JSON.stringify({username:u,password:p})
+      });
+      var d={};try{d=await r.json()}catch(e){}
+      if(!r.ok){$("#err").textContent=d.error||("error "+r.status);$("#go").disabled=false;return;}
+      if(d.needs_totp){ pendingTok=d.pending; showTotp(); return; }
+      window.location.href="/";
+    }catch(e){$("#err").textContent="network error";$("#go").disabled=false;}
+  }
+
+  async function submitTotp(){
+    $("#totp-err").style.color="var(--danger)";
+    var code=$("#totp").value.trim();
+    if(!code){$("#totp-err").textContent="Enter your code";return;}
+    $("#totp-go").disabled=true;$("#totp-err").textContent="";
+    try{
+      var r=await fetch("/auth/login/totp",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        credentials:"same-origin",body:JSON.stringify({pending:pendingTok,code:code})
+      });
+      var d={};try{d=await r.json()}catch(e){}
+      if(!r.ok){$("#totp-err").textContent=d.error||("error "+r.status);$("#totp-go").disabled=false;return;}
+      window.location.href="/";
+    }catch(e){$("#totp-err").textContent="network error";$("#totp-go").disabled=false;}
+  }
+
+  $("#go").onclick=submit;
+  $("#u").addEventListener("keydown",function(e){if(e.key==="Enter")submit()});
+  $("#p").addEventListener("keydown",function(e){if(e.key==="Enter")submit()});
+  $("#totp-go").onclick=submitTotp;
+  $("#totp").addEventListener("keydown",function(e){if(e.key==="Enter")submitTotp()});
+
+  // GRAMSAI_OAUTH: wire social buttons (by aria-label) to the OAuth start endpoints.
+  (function(){
+    function go(p){ window.location.href = "/auth/oauth/"+p+"/start"; }
+    var g  = document.querySelector('.social button[aria-label="Google"]');
+    var gh = document.querySelector('.social button[aria-label="GitHub"]');
+    var ms = document.querySelector('.social button[aria-label="Microsoft"]');
+    if(g)  g.addEventListener("click", function(){ go("google"); });
+    if(gh) gh.addEventListener("click", function(){ go("github"); });
+    if(ms) ms.style.display = "none";                 // not registered -> hide
+    // with Microsoft hidden, make the row two columns so the buttons fill nicely
+    var row = document.querySelector(".social");
+    if(row && ms) row.style.gridTemplateColumns = "repeat(2,1fr)";
+  })();
+
+    $("#totp-recovery").onclick=function(){
+    recoveryMode=!recoveryMode;
+    if(recoveryMode){
+      $("#totp-label").textContent="Recovery code";
+      $("#totp").placeholder="XXXXX-XXXXX"; $("#totp").setAttribute("inputmode","text");
+      this.textContent="Use an authenticator code instead";
+    }else{
+      $("#totp-label").textContent="Authentication code";
+      $("#totp").placeholder="123456"; $("#totp").setAttribute("inputmode","numeric");
+      this.textContent="Use a recovery code instead";
+    }
+    $("#totp").value=""; $("#totp").focus();
+  };
+
+
+/* GRAMSAI_CONSENT */
+(function(){
+  var LGL_TERMS = [{"h": "1. Agreement to These Terms", "body": ["These Terms of Service and Acceptable Use Policy (collectively, the “Terms”) govern your access to and use of GramsAI (“GramsAI,” “the Service,” “we,” “us,” or “our”), an uncensored artificial-intelligence platform available at grams.chat, together with all related websites, application programming interfaces, software, features, and functionality.", "These Terms constitute a legally binding agreement between you and the operator of the Service. By accessing or using the Service in any manner, you acknowledge that you have read, understood, and agree to be bound by these Terms and by our Privacy Policy, which is incorporated herein by reference. If you do not agree to these Terms in their entirety, you must not access or use the Service.", "You affirm that you are at least eighteen (18) years of age, that you have the legal capacity to enter into these Terms, and that you are not barred from using the Service under the laws of any jurisdiction applicable to you."]}, {"h": "2. Definitions", "body": ["“Input” means any text, prompt, instruction, file, image, document, or other material you submit to the Service. “Output” means any material generated by the Service in response to Input. “Content” means Input and Output collectively. “Materials” means any software, code, instructions, designs, formulae, plans, or other materials, whether constituting Input, Output, or otherwise."]}, {"h": "3. Nature of the Service; Assumption of Risk", "body": ["The Service provides access to uncensored, general-purpose, probabilistic artificial-intelligence models that generate Content automatically in response to Input. The Service applies no editorial content filtering and does not moralise, refuse, or restrict Output on the basis of subject matter, save as required to enforce the absolute prohibitions in Section 6.", "You expressly acknowledge and accept that this is a rapidly evolving and experimental technology, and that Output may be inaccurate, false, incomplete, misleading, offensive, objectionable, harmful, or otherwise unsuitable for any purpose. Output is generated probabilistically and is not a statement of fact. The Service is not a truth machine, and you must not rely on Output as a sole source of truth or for any decision of consequence, including without limitation any medical, legal, financial, safety, or other professional decision.", "BY USING THE SERVICE, YOU RECOGNISE AND VOLUNTARILY ASSUME ALL RISKS ASSOCIATED WITH THE USE OF AN UNCENSORED, EXPERIMENTAL ARTIFICIAL-INTELLIGENCE SYSTEM, INCLUDING THE RISK THAT INPUT YOU PROVIDE MAY RESULT IN OUTPUT THAT YOU OR OTHERS CONSIDER OFFENSIVE, OBJECTIONABLE, OR HARMFUL."]}, {"h": "4. The Service Is a Neutral Conduit", "body": ["The Service is a neutral, automated tool. We do not author, originate, select, endorse, verify, adopt, or review any Content generated through the Service. We are not a participant in, contributor to, or publisher of any Content that you create using the Service.", "We do not monitor, pre-screen, or review user activity, and we do not retain logs of user conversations. We therefore have no knowledge of, and no practical means of knowing, what any individual user inputs, generates, stores, downloads, or distributes. You acknowledge that the absence of monitoring is a deliberate and fundamental privacy characteristic of the Service, and is not a representation, warranty, or assurance by us that any particular use of the Service is lawful, safe, or permissible."]}, {"h": "5. Your Sole Responsibility for Lawful Use", "body": ["You are solely, fully, and exclusively responsible for all of your activity on the Service, including every item of Input you submit and every item of Output you request, generate, store, download, publish, transmit, or distribute, and for all consequences arising therefrom.", "You are solely responsible for knowing, and for complying at all times with, every law, regulation, rule, sanction, and legal obligation that applies to you in every jurisdiction in which you live, reside, are physically located, are a citizen or national, or are otherwise subject to legal authority. You acknowledge that laws differ materially between, and within, jurisdictions, and that conduct lawful in one place may be unlawful in another.", "It is your obligation, and not ours, to ensure that your use of the Service is lawful for you. By accessing or using the Service, you represent and warrant that your use is and will remain lawful for you, and you agree that you will not use the Service for any purpose, or to produce, obtain, store, or distribute any Material, that is unlawful in any jurisdiction applicable to you. If any use of the Service would be unlawful for you, you must not engage in it.", "You bear sole responsibility for ensuring continuing compliance with the law, and you agree to indemnify us as set out in Section 9 in respect of any failure to do so."]}, {"h": "6. Prohibited Uses", "body": ["Notwithstanding the uncensored nature of the Service, the following uses are strictly and absolutely prohibited. These prohibitions apply regardless of intent, framing, jurisdiction, or claimed purpose, and any breach results in immediate termination of your right to use the Service and may be reported to appropriate authorities to the extent we are legally required to do so.", "(a) Child sexual exploitation. You may not use the Service to create, request, solicit, store, transmit, or distribute any material that sexually exploits, sexualises, abuses, or endangers a minor, including child sexual abuse material in any form whatsoever, whether real, simulated, drawn, described, or AI-generated. This prohibition is absolute and admits no exception.", "(b) Harm to people. You may not use the Service to plan, facilitate, encourage, or carry out violence against, the killing of, terrorism against, the trafficking of, the kidnapping of, the torture of, or serious physical or psychological harm to any person or group of persons.", "(c) Harm to children, animals, or protected places. You may not use the Service to facilitate, encourage, or produce material directed at causing harm to children, the abuse or torture of animals, or the damage, destruction, or desecration of protected, cultural, religious, or environmentally protected places or property.", "(d) Weapons and mass harm. You may not use the Service to develop, design, produce, acquire, or deploy weapons, explosives, or chemical, biological, radiological, or nuclear materials, or any other thing intended or reasonably likely to cause death, serious injury, or mass harm.", "(e) Harmful products, software, and services. You may not use the Service to design, produce, distribute, or facilitate any product, material, software, code, service, or instruction that is intended or reasonably likely to be used to cause harm to other persons, to children, to animals, or to places or property, including malicious software, intrusion tools, weapons-enabling designs, or instructions for synthesising or obtaining illegal or unlawfully regulated substances, goods, or services.", "(f) Unlawful and infringing conduct. You may not use the Service in any manner that violates applicable law; that infringes the intellectual-property, privacy, publicity, or other rights of any person; that constitutes fraud, deception, defamation, harassment, stalking, or non-consensual intimate imagery; or that misappropriates the identity or likeness of any person without lawful authority.", "(g) Attacks on the Service. You may not attack, probe, reverse-engineer, decompile, disrupt, overload, or attempt to circumvent the security, isolation, access controls, or safety measures of the Service or its infrastructure, nor use the Service to attack or compromise any other system.", "(h) Circumvention. You may not attempt to use the Service in any way designed to cause it to act in breach of these prohibitions."]}, {"h": "7. Disclaimer of Warranties", "body": ["THE SERVICE, INCLUDING ALL CONTENT AND OUTPUT, IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITH ALL FAULTS AND WITHOUT WARRANTY OF ANY KIND. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, WE EXPRESSLY DISCLAIM ALL WARRANTIES, REPRESENTATIONS, AND CONDITIONS, WHETHER EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE, INCLUDING WITHOUT LIMITATION ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY, AND ANY WARRANTY ARISING FROM COURSE OF DEALING OR USAGE OF TRADE.", "WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, SECURE, OR ERROR-FREE, OR THAT ANY OUTPUT WILL BE ACCURATE, COMPLETE, RELIABLE, LAWFUL, SAFE, OR SUITABLE FOR ANY PURPOSE. YOU USE THE SERVICE AND ANY OUTPUT ENTIRELY AT YOUR OWN RISK."]}, {"h": "8. Limitation of Liability", "body": ["TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE OPERATOR OF THE SERVICE, NOR ITS OWNERS, DIRECTORS, OFFICERS, MEMBERS, EMPLOYEES, CONTRACTORS, AGENTS, OR AFFILIATES (THE “PROTECTED PARTIES”), BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS, REVENUE, DATA, GOODWILL, OR OTHER INTANGIBLE LOSSES, ARISING OUT OF OR RELATING TO YOUR ACCESS TO OR USE OF, OR INABILITY TO ACCESS OR USE, THE SERVICE OR ANY CONTENT, WHETHER BASED ON WARRANTY, CONTRACT, TORT (INCLUDING NEGLIGENCE), STATUTE, OR ANY OTHER LEGAL THEORY, AND WHETHER OR NOT THE PROTECTED PARTIES HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.", "WITHOUT LIMITING THE FOREGOING, THE PROTECTED PARTIES SHALL HAVE NO LIABILITY WHATSOEVER FOR ANY CONTENT, INCLUDING ANY INPUT SUBMITTED BY YOU OR ANY OUTPUT GENERATED IN RESPONSE TO YOUR INPUT, NOR FOR ANY USE YOU OR ANY OTHER PERSON MAKES OF SUCH CONTENT. YOU ACKNOWLEDGE THAT WE HAVE NO KNOWLEDGE OF AND NO CONTROL OVER USER ACTIVITY, AND THAT YOU, AND NOT THE PROTECTED PARTIES, BEAR FULL AND SOLE RESPONSIBILITY AND LIABILITY FOR YOUR USE OF THE SERVICE AND ALL CONSEQUENCES OF THAT USE.", "TO THE EXTENT THAT LIABILITY CANNOT LAWFULLY BE EXCLUDED, THE AGGREGATE LIABILITY OF THE PROTECTED PARTIES ARISING OUT OF OR RELATING TO THE SERVICE SHALL NOT EXCEED THE GREATER OF (A) THE TOTAL AMOUNT YOU PAID TO USE THE SERVICE IN THE THREE (3) MONTHS IMMEDIATELY PRECEDING THE EVENT GIVING RISE TO THE CLAIM, OR (B) ONE HUNDRED UNITED STATES DOLLARS (USD 100). THE EXISTENCE OF MULTIPLE CLAIMS WILL NOT ENLARGE THIS LIMIT."]}, {"h": "9. Indemnification", "body": ["You agree to indemnify, defend, and hold harmless the Protected Parties from and against any and all claims, demands, actions, proceedings, liabilities, damages, losses, judgments, fines, penalties, costs, and expenses (including reasonable legal fees) arising out of or in any way connected with: (a) your access to or use of the Service; (b) your Content; (c) your violation of these Terms; (d) your violation of any law or the rights of any third party; or (e) any consequence of any of the foregoing. We reserve the right, at our own expense, to assume the exclusive defence and control of any matter otherwise subject to indemnification by you, in which event you will cooperate with us in asserting any available defences."]}, {"h": "10. Payments, Subscriptions, and Refunds", "body": ["The Service is paid for exclusively in cryptocurrency. By purchasing access, a subscription, a storage add-on, or any other paid feature, you authorise the corresponding charge in the cryptocurrency and amount presented to you at the time of purchase.", "All payments are final. Except where a refund is strictly required by applicable mandatory law, all fees and cryptocurrency payments are non-refundable and are not subject to credit, proration, or set-off, including in respect of unused time, partially used periods, or features you did not use. Because settlement occurs on public blockchains and pricing is denominated at the time of payment, we do not reverse, refund, or otherwise return cryptocurrency once a payment has been confirmed.", "Subscriptions, where offered, continue for the period purchased. You are responsible for managing your own access and for ceasing use before the end of a paid period if you do not wish to continue. We are not obliged to provide notice of expiry. We may change pricing prospectively; any change applies to purchases made after the change takes effect.", "You are responsible for any network, exchange, or transaction fees associated with making a cryptocurrency payment, and for sending the correct amount to the correct address. We are not responsible for funds lost due to user error, sending the wrong amount, sending after a quote has expired, or sending to an incorrect address."]}, {"h": "11. Cookies and Local Storage", "body": ["The Service uses only those cookies and local browser-storage mechanisms that are strictly necessary to authenticate your session, maintain your login, and operate the interface. These are essential to the functioning of the Service.", "The Service does not deploy advertising cookies, cross-site tracking technologies, or third-party behavioural-advertising mechanisms for the purpose of profiling you across services. Disabling strictly necessary cookies in your browser will prevent you from logging in to or using the Service as a registered user. By using the Service, you consent to the use of strictly necessary cookies and local storage as described in this section and in our Privacy Policy."]}, {"h": "12. Termination", "body": ["We may suspend, restrict, or terminate your access to the Service at any time, with or without notice and for any reason or no reason, including where we believe, in our sole discretion, that the Service is being used unlawfully or in violation of these Terms. Upon termination, the provisions of these Terms that by their nature should survive, including Sections 5 through 14, will continue in effect."]}, {"h": "13. Governing Terms, Dispute Resolution, and Severability", "body": ["These Terms, together with the Privacy Policy, constitute the entire agreement between you and the operator of the Service concerning the Service, and supersede all prior or contemporaneous understandings.", "If any provision of these Terms is held to be invalid, illegal, or unenforceable, that provision shall be enforced to the maximum extent permissible and the remaining provisions shall remain in full force and effect. Our failure to enforce any right or provision of these Terms shall not constitute a waiver of that or any other right or provision.", "You agree that any dispute arising out of or relating to these Terms or the Service shall be resolved on an individual basis, and you waive any right to participate in a class, collective, or representative action to the fullest extent permitted by law."]}, {"h": "14. Changes to These Terms", "body": ["We may revise these Terms at any time. The Effective Date indicates the current version. Material changes will be reflected by posting the revised Terms. Your continued use of the Service after any revision constitutes your acceptance of the revised Terms."]}];
+  var LGL_EFF = "Effective Date: 12 June 2026";
+  function init(){
+    var ov = document.getElementById("lgl-ov");
+    var body = document.getElementById("lgl-body");
+    var foot = document.getElementById("lgl-foot");
+    var openLink = document.getElementById("open-terms");
+    var closeBtn = document.getElementById("lgl-close");
+    var consent = document.getElementById("consent");
+    var hint = document.getElementById("consent-hint");
+    if(!ov || !openLink || !closeBtn) return;
+    function close(){ ov.classList.remove("show"); }
+    function open(){
+      var html = '<div class="lgl-eff">' + LGL_EFF + '</div>';
+      for (var i=0;i<LGL_TERMS.length;i++){
+        html += '<div class="lgl-h">' + LGL_TERMS[i].h + '</div>';
+        for (var j=0;j<LGL_TERMS[i].body.length;j++){
+          var t = LGL_TERMS[i].body[j].replace(/&/g,'&amp;').replace(/</g,'&lt;');
+          html += '<p class="lgl-p">' + t + '</p>';
+        }
+      }
+      body.innerHTML = html; body.scrollTop = 0;
+      ov.classList.add("show");
+      var check = function(){
+        if (body.scrollTop + body.clientHeight >= body.scrollHeight - 24){
+          consent.disabled = false;
+          hint.textContent = "You may now accept the Terms.";
+          foot.textContent = "You have reached the end. You may now close and accept.";
+          body.removeEventListener("scroll", check);
+        }
+      };
+      body.addEventListener("scroll", check);
+      setTimeout(function(){ if (body.scrollHeight <= body.clientHeight + 24) check(); }, 30);
+    }
+    openLink.addEventListener("click", function(e){ e.preventDefault(); open(); });
+    closeBtn.addEventListener("click", close);
+    ov.addEventListener("click", function(e){ if (e.target === ov) close(); });
+    document.addEventListener("keydown", function(e){ if (e.key === "Escape") close(); });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+
+</script>
+<div id="lgl-ov">
+  <div class="lgl-box">
+    <div class="lgl-head"><span class="t">Terms &amp; Conditions</span><button class="x" id="lgl-close" type="button">Close</button></div>
+    <div class="lgl-body" id="lgl-body"></div>
+    <div class="lgl-foot" id="lgl-foot">Scroll to the end to accept.</div>
+  </div>
+</div>
+</body>
+</html>

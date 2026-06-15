@@ -1,0 +1,14 @@
+[Unit]
+Description=GramsAI API
+After=postgresql.service redis.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/gramsai/gramsai.env
+ExecStartPre=/bin/mkdir -p /run/gramsai
+ExecStart=/opt/gramsai/bin/api
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

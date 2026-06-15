@@ -1,0 +1,14 @@
+[Unit]
+Description=GramsAI Control Agent (spawns per-user containers)
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/gramsai-agent.env
+ExecStart=/usr/local/bin/gramsai-agent
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

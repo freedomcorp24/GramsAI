@@ -1,0 +1,56 @@
+[
+    {
+        "Name": "gramsai-iso",
+        "Id": "282e111dc33591d3f7eb35ac7ceec93653763f26eb97043fb5a77028eb8910ad",
+        "Created": "2026-06-14T20:05:50.158267725Z",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv4": true,
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": {},
+            "Config": [
+                {
+                    "Subnet": "172.18.0.0/16",
+                    "Gateway": "172.18.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Options": {},
+        "Labels": {},
+        "Containers": {
+            "23b36175d8fc2bc2f13e5dc1d7a8c09e6bb479775f38b18fab555506004403bf": {
+                "Name": "oc-user-4",
+                "EndpointID": "25cf68f60d4736d8b2776e27c351e5e97638962d9f5fe9f35096b6712bc348b8",
+                "MacAddress": "12:96:10:aa:9f:5e",
+                "IPv4Address": "172.18.0.2/16",
+                "IPv6Address": ""
+            },
+            "997e810da5b1760f670f99e002defa5c963f41f80f3d99d912909a37c2745d37": {
+                "Name": "oc-user-8",
+                "EndpointID": "3ea5698c5565d1a3f517137c49fd9160aa63c2bb004008bb64f2f33c795d0825",
+                "MacAddress": "9e:00:02:8b:4d:4a",
+                "IPv4Address": "172.18.0.3/16",
+                "IPv6Address": ""
+            }
+        },
+        "Status": {
+            "IPAM": {
+                "Subnets": {
+                    "172.18.0.0/16": {
+                        "IPsInUse": 5,
+                        "DynamicIPsAvailable": 65531
+                    }
+                }
+            }
+        }
+    }
+]
