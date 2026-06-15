@@ -38,7 +38,7 @@ var AliasToModel = map[string]string{
 	"Writer":     "qwen/qwen3-235b-a22b",
 	"Translate":  "qwen/qwen3-235b-a22b",
 	"Vision":     "meta-llama/llama-4-maverick",
-	"Image Gen":  "bytedance-seed/seedream-4.5",
+	"Image Gen":  "black-forest-labs/flux.2-pro",
 }
 
 // tierAllows maps tier -> set of specialties the tier may use. Basic is limited
@@ -175,6 +175,9 @@ func LLMHandler(pool *pgxpool.Pool, store *memory.Store, openrouterKey string) h
 			realModel = AliasToModel["General"]
 		}
 		body["model"] = realModel
+		if alias == "Image Gen" {
+			body["modalities"] = []string{"image"}
+		}
 		// force usage accounting on (authoritative cost in final SSE chunk)
 		body["usage"] = map[string]interface{}{"include": true}
 
@@ -239,7 +242,7 @@ func LLMHandler(pool *pgxpool.Pool, store *memory.Store, openrouterKey string) h
 		// "Upstream idle timeout exceeded" during long reasoning. order prefers the
 		// official DeepSeek endpoint (best uptime); require_parameters ensures the
 		// provider honors our reasoning+tool params. Only set if caller did not.
-		if _, ok := body["provider"]; !ok {
+		if _, ok := body["provider"]; !ok && alias != "Image Gen" {
 			body["provider"] = map[string]interface{}{
 				"order":              []string{"DeepSeek"},
 				"require_parameters": true,
@@ -247,6 +250,13 @@ func LLMHandler(pool *pgxpool.Pool, store *memory.Store, openrouterKey string) h
 		}
 
 		streaming, _ := body["stream"].(bool)
+		// GRAMSAI_IMAGE_REWRITE: image gen must be non-streaming so we can convert
+		// the OpenRouter images[] response into a markdown data-url completion that
+		// opencode actually renders (it discards model file/image output parts).
+		if alias == "Image Gen" {
+			body["stream"] = false
+			streaming = false
+		}
 		jsonBody, _ := json.Marshal(body)
 
 		// --- 4. FORWARD TO OPENROUTER WITH SHARED KEY ---
@@ -309,6 +319,9 @@ func LLMHandler(pool *pgxpool.Pool, store *memory.Store, openrouterKey string) h
 			}
 		} else {
 			data, _ := io.ReadAll(resp.Body)
+			if alias == "Image Gen" {
+				data = rewriteImageResponse(data)
+			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(resp.StatusCode)
 			w.Write(data)
@@ -407,4 +420,61 @@ func ResolveUID(ctx context.Context, pool *pgxpool.Pool, token string) (int64, e
 		return 0, err
 	}
 	return u.ID, nil
+}
+
+
+// GRAMSAI_IMAGE_REWRITE: OpenRouter returns generated images in
+// choices[].message.images[].image_url.url (a data: URL). opencode discards
+// model image output, so we move the image into message.content as a markdown
+// image. The result renders wherever opencode renders markdown (tool output).
+func rewriteImageResponse(data []byte) []byte {
+	var obj map[string]interface{}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return data
+	}
+	choices, _ := obj["choices"].([]interface{})
+	if len(choices) == 0 {
+		return data
+	}
+	ch0, _ := choices[0].(map[string]interface{})
+	if ch0 == nil {
+		return data
+	}
+	msg, _ := ch0["message"].(map[string]interface{})
+	if msg == nil {
+		return data
+	}
+	imgs, _ := msg["images"].([]interface{})
+	if len(imgs) == 0 {
+		return data
+	}
+	var md strings.Builder
+	txt, _ := msg["content"].(string)
+	if txt != "" {
+		md.WriteString(txt)
+		md.WriteString("\n\n")
+	}
+	for _, it := range imgs {
+		im, _ := it.(map[string]interface{})
+		if im == nil {
+			continue
+		}
+		iu, _ := im["image_url"].(map[string]interface{})
+		if iu == nil {
+			continue
+		}
+		url, _ := iu["url"].(string)
+		if url != "" {
+			md.WriteString("![generated image](")
+			md.WriteString(url)
+			md.WriteString(")\n")
+		}
+	}
+	msg["content"] = md.String()
+	delete(msg, "images")
+	out, err := json.Marshal(obj)
+	if err != nil {
+		return data
+	}
+	return out
 }

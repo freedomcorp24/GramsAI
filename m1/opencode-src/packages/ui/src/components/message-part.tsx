@@ -1638,6 +1638,28 @@ ToolRegistry.register({
 })
 
 ToolRegistry.register({
+  name: "image_generate_image",
+  render(props) {
+    const i18n = useI18n()
+    return (
+      <BasicTool
+        {...props}
+        icon="mcp"
+        defaultOpen={true}
+        forceOpen={true}
+        trigger={{ title: "Image" }}
+      >
+        <Show when={props.output}>
+          <div data-component="tool-output" data-slot="generated-image">
+            <Markdown text={props.output!} />
+          </div>
+        </Show>
+      </BasicTool>
+    )
+  },
+})
+
+ToolRegistry.register({
   name: "list",
   render(props) {
     const i18n = useI18n()

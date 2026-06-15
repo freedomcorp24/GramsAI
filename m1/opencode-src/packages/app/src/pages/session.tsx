@@ -212,9 +212,9 @@ export default function Page() {
     setActive: tabs().setActive,
   })
   const onDownloadFile = (p: string) => {
-    // GRAMSAI_DL_BY_CHAT_FE: send only the chat id + bare filename. The gateway
-    // resolves the real worktree path server-side, so no internal path is exposed.
-    const file = p.replace(/^.*\//, "") // basename only
+    // GRAMSAI_DL_BY_CHAT_FE: send chat id + the worktree-relative path (keeps
+    // subdirs like images/foo.png). Gateway resolves the worktree root server-side.
+    const file = p.replace(/^\/+/, "") // strip leading slash, keep relative subpath
     const chat = params.id || ""
     const url =
       "/dl?chat=" + encodeURIComponent(chat) +

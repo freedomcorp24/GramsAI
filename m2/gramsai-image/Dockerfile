@@ -65,6 +65,9 @@ RUN node -c /usr/local/bin/tavily-search.js && echo "JS OK"
 COPY memory-search.js /usr/local/bin/memory-search.js
 RUN chmod +x /usr/local/bin/memory-search.js
 RUN node -c /usr/local/bin/memory-search.js && echo "MEM JS OK"
+COPY image-gen.js /usr/local/bin/image-gen.js
+RUN chmod +x /usr/local/bin/image-gen.js
+RUN node -c /usr/local/bin/image-gen.js && echo "IMG JS OK"
 COPY workspace-download.js /usr/local/bin/workspace-download.js
 RUN chmod +x /usr/local/bin/workspace-download.js
 RUN node -c /usr/local/bin/workspace-download.js && echo "DL OK"

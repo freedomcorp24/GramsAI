@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict yekjMWJiVqcYWayA9ql1mCxhOttiYLEOIofkxPjGSQxG3fzdb668MAzaeZ5nC1s
+\restrict mX6myHBpka27E2DvAKfSCXdfO3vZnazxNZDbYuAdO7qGebDNX0YYgbMflkW3kRn
 
 -- Dumped from database version 14.23 (Ubuntu 14.23-1.pgdg22.04+1)
 -- Dumped by pg_dump version 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1)
@@ -85,7 +85,8 @@ CREATE TABLE public.containers (
     port integer NOT NULL,
     status text DEFAULT 'stopped'::text NOT NULL,
     last_active timestamp with time zone DEFAULT now() NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    browser_port integer
 );
 
 
@@ -503,6 +504,14 @@ ALTER TABLE ONLY public.api_tokens
 
 
 --
+-- Name: containers containers_host_id_browser_port_key; Type: CONSTRAINT; Schema: public; Owner: darkai
+--
+
+ALTER TABLE ONLY public.containers
+    ADD CONSTRAINT containers_host_id_browser_port_key UNIQUE (host_id, browser_port);
+
+
+--
 -- Name: containers containers_host_id_container_name_key; Type: CONSTRAINT; Schema: public; Owner: darkai
 --
 
@@ -879,5 +888,5 @@ ALTER TABLE ONLY public.user_memory
 -- PostgreSQL database dump complete
 --
 
-\unrestrict yekjMWJiVqcYWayA9ql1mCxhOttiYLEOIofkxPjGSQxG3fzdb668MAzaeZ5nC1s
+\unrestrict mX6myHBpka27E2DvAKfSCXdfO3vZnazxNZDbYuAdO7qGebDNX0YYgbMflkW3kRn
 

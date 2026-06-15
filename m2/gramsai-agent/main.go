@@ -6,7 +6,9 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"os/exec"
@@ -41,6 +43,7 @@ func main() {
 	mux.HandleFunc("/usage", authed(handleUsage))
 	mux.HandleFunc("/purge", authed(handlePurge))
 	mux.HandleFunc("/wipe-chats", authed(handleWipeChats))
+	mux.HandleFunc("/dl", authed(handleDownload))
 
 	log.Printf("control-agent listening on %s (image=%s)", listen, image)
 	srv := &http.Server{Addr: listen, Handler: mux, ReadTimeout: 30 * time.Second, WriteTimeout: 120 * time.Second}
@@ -66,6 +69,7 @@ type spawnReq struct {
 	UserID int64  `json:"user_id"`
 	Token  string `json:"token"`
 	Port   int    `json:"port"`
+	BrowserPort int `json:"browser_port"`
 	DEK    string `json:"dek"`   // GRAMSAI_DEK_AGENT: base64 per-user DEK (may be empty)
 }
 
@@ -91,7 +95,9 @@ func handleSpawn(w http.ResponseWriter, r *http.Request) {
 	portStr := strconv.Itoa(b.Port)
 	args := []string{
 		"run", "-d", "--name", name, "--network", "gramsai-iso", "-w", "/workspace",
+		"--shm-size=512m",
 		"-p", "10.152.152.100:" + portStr + ":" + portStr,
+		"-p", "10.152.152.100:" + strconv.Itoa(b.BrowserPort) + ":8088",
 		"-v", ws + ":/workspace", "-v", loc + ":/root/.local", "-v", cfg + ":/root/.config",
 		"-e", "GRAMSAI_TOKEN=" + b.Token, "-e", "GRAMSAI_DEK=" + b.DEK, "-e", "GRAMSAI_WORKSPACE=/workspace",
 		"-e", "GRAMSAI_GATEWAY_V1=" + gatewayV1, "--dns", dnsServer, "--restart=always",
@@ -240,7 +246,9 @@ func handleSpawnInline(w http.ResponseWriter, b spawnReq, name string) {
 	portStr := strconv.Itoa(b.Port)
 	args := []string{
 		"run", "-d", "--name", name, "--network", "gramsai-iso", "-w", "/workspace",
+		"--shm-size=512m",
 		"-p", "10.152.152.100:" + portStr + ":" + portStr,
+		"-p", "10.152.152.100:" + strconv.Itoa(b.BrowserPort) + ":8088",
 		"-v", ws + ":/workspace", "-v", loc + ":/root/.local", "-v", cfg + ":/root/.config",
 		"-e", "GRAMSAI_TOKEN=" + b.Token, "-e", "GRAMSAI_DEK=" + b.DEK, "-e", "GRAMSAI_WORKSPACE=/workspace",
 		"-e", "GRAMSAI_GATEWAY_V1=" + gatewayV1, "--dns", dnsServer, "--restart=always",
@@ -270,6 +278,98 @@ func running(name string) bool {
 		return false
 	}
 	return strings.TrimSpace(out) == "true"
+}
+
+
+// handleDownload serves a single file from a user's workspace, bind-mounted on
+// the host at {dataRoot}/user-N/workspace. Gateway passes user_id + dir (a
+// /workspace-relative or /workspace-prefixed path). Images served inline so they
+// render in <img>; everything else as attachment. Traversal-guarded.
+
+func serveFile(w http.ResponseWriter, full string) {
+	f, err := os.Open(full)
+	if err != nil { writeJSON(w, 404, map[string]any{"error":"file not found"}); return }
+	defer f.Close()
+	ctype := mime.TypeByExtension(strings.ToLower(filepath.Ext(full)))
+	if ctype == "" { ctype = "application/octet-stream" }
+	w.Header().Set("Content-Type", ctype)
+	if strings.HasPrefix(ctype, "image/") {
+		w.Header().Set("Content-Disposition", `inline; filename="`+filepath.Base(full)+`"`)
+	} else {
+		w.Header().Set("Content-Disposition", `attachment; filename="`+filepath.Base(full)+`"`)
+	}
+	w.WriteHeader(200)
+	_, _ = io.Copy(w, f)
+}
+
+func handleDownload(w http.ResponseWriter, r *http.Request) {
+	uidStr := r.URL.Query().Get("user_id")
+	id, err := strconv.ParseInt(uidStr, 10, 64)
+	if err != nil || id <= 0 {
+		writeJSON(w, 400, map[string]any{"error": "valid user_id required"})
+		return
+	}
+	userRoot := fmt.Sprintf("%s/user-%d", dataRoot, id)
+	base := userRoot + "/workspace"
+	rel := r.URL.Query().Get("dir")
+	// Worktree paths (/root/.local/share/opencode/worktree/<hash>/<sub>) map to the
+	// user's local mount; /workspace paths map to the workspace mount.
+	if strings.HasPrefix(rel, "/root/.local") {
+		base = userRoot + "/local" + strings.TrimPrefix(rel, "/root/.local")
+		rel = ""
+		// base now points at the exact file/dir; treat trailing as full path
+		if fi, e := os.Stat(base); e == nil && !fi.IsDir() {
+			serveFile(w, base); return
+		}
+	}
+	rel = strings.TrimPrefix(rel, "/workspace")
+	rel = strings.TrimPrefix(rel, "/")
+
+	if rel == "" {
+		w.Header().Set("Content-Type", "application/gzip")
+		w.Header().Set("Content-Disposition", `attachment; filename="workspace.tar.gz"`)
+		cmd := exec.Command("tar", "-czf", "-",
+			"--exclude=.git", "--exclude=.config", "--exclude=.local",
+			"--exclude=*.db", "--exclude=*.db-shm", "--exclude=*.db-wal",
+			"-C", base, ".")
+		cmd.Stdout = w
+		_ = cmd.Run()
+		return
+	}
+
+	full := filepath.Join(base, rel)
+	cleanBase := filepath.Clean(base)
+	cleanFull := filepath.Clean(full)
+	if cleanFull != cleanBase && !strings.HasPrefix(cleanFull, cleanBase+string(os.PathSeparator)) {
+		writeJSON(w, 400, map[string]any{"error": "invalid path"})
+		return
+	}
+	fi, statErr := os.Stat(cleanFull)
+	if statErr != nil || fi.IsDir() {
+		writeJSON(w, 404, map[string]any{"error": "file not found"})
+		return
+	}
+	f, openErr := os.Open(cleanFull)
+	if openErr != nil {
+		writeJSON(w, 404, map[string]any{"error": "file not found"})
+		return
+	}
+	defer f.Close()
+
+	ext := strings.ToLower(filepath.Ext(cleanFull))
+	ctype := mime.TypeByExtension(ext)
+	if ctype == "" {
+		ctype = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", ctype)
+	if strings.HasPrefix(ctype, "image/") {
+		w.Header().Set("Content-Disposition", "inline; filename=\""+filepath.Base(cleanFull)+"\"")
+	} else {
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+filepath.Base(cleanFull)+"\"")
+	}
+	w.Header().Set("Cache-Control", "private, max-age=300")
+	w.WriteHeader(200)
+	_, _ = io.Copy(w, f)
 }
 
 func run(name string, args ...string) error { return exec.Command(name, args...).Run() }

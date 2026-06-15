@@ -34,15 +34,19 @@ func (r *Router) HandleBrowser(getUID func(*http.Request) int64) http.HandlerFun
 
 		// Resolve the user's container host IP (same lookup as the OpenCode proxy).
 		var ip string
+		var bport int
 		err := r.pool.QueryRow(req.Context(), `
-			SELECT h.internal_ip
+			SELECT h.internal_ip, COALESCE(c.browser_port, 0)
 			FROM containers c JOIN hosts h ON h.id = c.host_id
-			WHERE c.user_id=$1`, uid).Scan(&ip)
+			WHERE c.user_id=$1`, uid).Scan(&ip, &bport)
 		if err != nil {
 			http.Error(w, `{"error":"no container for user"}`, http.StatusNotFound)
 			return
 		}
-		target := fmt.Sprintf("%s:%d", ip, bridgePort)
+		if bport == 0 {
+			bport = bridgePort // legacy rows / pre-migration containers
+		}
+		target := fmt.Sprintf("%s:%d", ip, bport)
 
 		// Compute the bridge path: strip the /api/browser prefix.
 		// e.g. /api/browser/ws/stream -> /ws/stream

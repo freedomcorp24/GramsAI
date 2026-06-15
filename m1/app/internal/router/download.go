@@ -41,7 +41,7 @@ func (r *Router) HandleDownload(getUID func(*http.Request) int64) http.HandlerFu
 			}
 			dir = wt
 			if fn := req.URL.Query().Get("file"); fn != "" {
-				dir = strings.TrimRight(dir, "/") + "/" + path.Base(fn)
+				dir = strings.TrimRight(dir, "/") + "/" + strings.TrimLeft(path.Clean(fn), "/")
 			}
 		}
 		agentURL := fmt.Sprintf("%s/dl?user_id=%d&dir=%s", controlURL, uid, url.QueryEscape(dir))

@@ -38,11 +38,12 @@ func New(pool *pgxpool.Pool, agentSecret string, keys *memory.KeyStore) *Router 
 }
 
 type Target struct {
-	UserID     int64
-	HostID     int64
-	InternalIP string
-	Port       int
-	Name       string
+	UserID      int64
+	HostID      int64
+	InternalIP  string
+	Port        int
+	BrowserPort int
+	Name        string
 }
 
 func (t Target) URL() string { return fmt.Sprintf("http://%s:%d", t.InternalIP, t.Port) }
@@ -76,7 +77,7 @@ func (r *Router) EnsureContainer(ctx context.Context, userID int64) (*Target, er
 	}
 
 	// Call the host's control-agent to spawn.
-	if err := r.agentSpawn(ctx, t.HostID, userID, token, t.Port); err != nil {
+	if err := r.agentSpawn(ctx, t.HostID, userID, token, t.Port, t.BrowserPort); err != nil {
 		_ = r.setStatus(ctx, userID, "error")
 		return nil, fmt.Errorf("spawn: %w", err)
 	}
@@ -94,10 +95,10 @@ func (r *Router) lookupRunning(ctx context.Context, userID int64) (*Target, bool
 	t := &Target{UserID: userID}
 	var status string
 	err := r.pool.QueryRow(ctx, `
-		SELECT c.host_id, h.internal_ip, c.port, c.container_name, c.status
+		SELECT c.host_id, h.internal_ip, c.port, COALESCE(c.browser_port, 0), c.container_name, c.status
 		FROM containers c JOIN hosts h ON h.id = c.host_id
 		WHERE c.user_id = $1`, userID).
-		Scan(&t.HostID, &t.InternalIP, &t.Port, &t.Name, &status)
+		Scan(&t.HostID, &t.InternalIP, &t.Port, &t.BrowserPort, &t.Name, &status)
 	if err != nil {
 		return nil, false
 	}
@@ -131,11 +132,21 @@ func (r *Router) placement(ctx context.Context, userID int64) (*Target, error) {
 	// Existing row? reuse host+port+name.
 	t := &Target{UserID: userID}
 	err := r.pool.QueryRow(ctx, `
-		SELECT c.host_id, h.internal_ip, c.port, c.container_name
+		SELECT c.host_id, h.internal_ip, c.port, COALESCE(c.browser_port, 0), c.container_name
 		FROM containers c JOIN hosts h ON h.id = c.host_id
 		WHERE c.user_id=$1`, userID).
-		Scan(&t.HostID, &t.InternalIP, &t.Port, &t.Name)
+		Scan(&t.HostID, &t.InternalIP, &t.Port, &t.BrowserPort, &t.Name)
 	if err == nil {
+		// Backfill a browser port for legacy rows created before the browser_port column.
+		if t.BrowserPort == 0 {
+			var bp int
+			if e := r.pool.QueryRow(ctx, `
+				SELECT COALESCE(MAX(browser_port), 16001) + 1 FROM containers WHERE host_id = $1`, t.HostID).Scan(&bp); e == nil {
+				if _, e2 := r.pool.Exec(ctx, `UPDATE containers SET browser_port=$1 WHERE user_id=$2`, bp, userID); e2 == nil {
+					t.BrowserPort = bp
+				}
+			}
+		}
 		_ = r.setStatus(ctx, userID, "starting")
 		return t, nil
 	}
@@ -165,14 +176,22 @@ func (r *Router) placement(ctx context.Context, userID int64) (*Target, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Assign next free browser/bridge port on that host (independent range, base 16002).
+	var browserPort int
+	err = r.pool.QueryRow(ctx, `
+		SELECT COALESCE(MAX(browser_port), 16001) + 1 FROM containers WHERE host_id = $1`, hostID).
+		Scan(&browserPort)
+	if err != nil {
+		return nil, err
+	}
 	name := fmt.Sprintf("oc-user-%d", userID)
 	_, err = r.pool.Exec(ctx, `
-		INSERT INTO containers (user_id, host_id, container_name, port, status)
-		VALUES ($1,$2,$3,$4,'starting')`, userID, hostID, name, port)
+		INSERT INTO containers (user_id, host_id, container_name, port, browser_port, status)
+		VALUES ($1,$2,$3,$4,$5,'starting')`, userID, hostID, name, port, browserPort)
 	if err != nil {
 		return nil, fmt.Errorf("insert container: %w", err)
 	}
-	return &Target{UserID: userID, HostID: hostID, InternalIP: internalIP, Port: port, Name: name}, nil
+	return &Target{UserID: userID, HostID: hostID, InternalIP: internalIP, Port: port, BrowserPort: browserPort, Name: name}, nil
 }
 
 func (r *Router) userToken(ctx context.Context, userID int64) (string, error) {
@@ -194,7 +213,7 @@ func (r *Router) agentControlURL(ctx context.Context, hostID int64) (string, err
 	return u, err
 }
 
-func (r *Router) agentSpawn(ctx context.Context, hostID, userID int64, token string, port int) error {
+func (r *Router) agentSpawn(ctx context.Context, hostID, userID int64, token string, port, browserPort int) error {
 	base, err := r.agentControlURL(ctx, hostID)
 	if err != nil {
 		return err
@@ -207,7 +226,7 @@ func (r *Router) agentSpawn(ctx context.Context, hostID, userID int64, token str
 			dekB64 = base64.StdEncoding.EncodeToString(dek)
 		}
 	}
-	body, _ := json.Marshal(map[string]any{"user_id": userID, "token": token, "port": port, "dek": dekB64})
+	body, _ := json.Marshal(map[string]any{"user_id": userID, "token": token, "port": port, "browser_port": browserPort, "dek": dekB64})
 	req, _ := http.NewRequestWithContext(ctx, "POST", base+"/spawn", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Agent-Secret", r.agentSecret)
