@@ -35,3 +35,4 @@ m1/opencode-src/packages/desktop/
 **/*.icns
 m1/opencode-src/packages/opencode/bin/opencode
 m1/opencode-src/nix/
+m2/gramsai-agent/agent-src.tar.gz
