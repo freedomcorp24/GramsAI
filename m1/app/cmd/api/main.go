@@ -191,6 +191,9 @@ func main() {
 	r.Get("/api/browser/ws/stream", rtr.HandleBrowser(getUID))
 	r.Get("/api/browser/ws/control", rtr.HandleBrowser(getUID))
 	r.Post("/v1/chat/completions", proxy.LLMHandler(pool, memStore, envOr("OPENROUTER_API_KEY", "")))
+	// Voice STT: browser mic -> base64 audio -> OpenRouter whisper-large-v3 -> {text}.
+	// Cookie-authed (getUID), same access gate + metering as chat.
+	r.Post("/api/audio/transcribe", proxy.TranscribeHandler(pool, envOr("OPENROUTER_API_KEY", ""), getUID))
 	// GRAMSAI_MEM_SEARCH: container's search_memory tool -> vector search over episodes.
 	r.Post("/api/memory/search", memStore.SearchHandler(pool, envOr("OPENROUTER_API_KEY", ""), proxy.ResolveUID))
 

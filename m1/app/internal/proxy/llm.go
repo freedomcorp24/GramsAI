@@ -39,6 +39,7 @@ var AliasToModel = map[string]string{
 	"Translate":  "qwen/qwen3-235b-a22b",
 	"Vision":     "meta-llama/llama-4-maverick",
 	"Image Gen":  "black-forest-labs/flux.2-pro",
+	"Voice":      "openai/whisper-large-v3",
 }
 
 // tierAllows maps tier -> set of specialties the tier may use. Basic is limited
@@ -332,7 +333,7 @@ func LLMHandler(pool *pgxpool.Pool, store *memory.Store, openrouterKey string) h
 
 		// --- 6. METER: write usage_logs + increment spend (best-effort, async) ---
 		if costMicros > 0 || inTok > 0 || outTok > 0 {
-			go meter(pool, u.ID, alias, realModel, inTok, outTok, costMicros)
+			go Meter(pool, u.ID, alias, realModel, inTok, outTok, costMicros)
 		}
 	}
 }
@@ -362,7 +363,7 @@ func lookupUserByToken(ctx context.Context, pool *pgxpool.Pool, token string) (*
 	return u, nil
 }
 
-func meter(pool *pgxpool.Pool, userID int64, specialty, model string, inTok, outTok int, costMicros int64) {
+func Meter(pool *pgxpool.Pool, userID int64, specialty, model string, inTok, outTok int, costMicros int64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	costCents := (costMicros + 9999) / 10000

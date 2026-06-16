@@ -518,6 +518,106 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     editorRef.textContent = text
   }
 
+  // --- VOICE: mic -> MediaRecorder(webm/mp4) -> /api/audio/transcribe -> editor ---
+  const [recording, setRecording] = createSignal(false)
+  const [transcribing, setTranscribing] = createSignal(false)
+  let mediaRecorder: MediaRecorder | null = null
+  let mediaStream: MediaStream | null = null
+  let audioChunks: Blob[] = []
+
+  const pickAudioMime = () => {
+    // iOS Safari historically only supports mp4/mp4a, desktop prefers webm/opus.
+    const prefs = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"]
+    for (const m of prefs) {
+      if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported?.(m)) return m
+    }
+    return ""
+  }
+
+  const blobToBase64 = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const res = reader.result as string
+        const comma = res.indexOf(",")
+        resolve(comma >= 0 ? res.slice(comma + 1) : res) // strip data: prefix -> raw base64
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+
+  const stopRecording = () => {
+    try { mediaRecorder?.stop() } catch {}
+    mediaStream?.getTracks().forEach((t) => t.stop())
+    setRecording(false)
+  }
+
+  const startRecording = async () => {
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch {
+      return // permission denied / no mic
+    }
+    const mime = pickAudioMime()
+    audioChunks = []
+    try {
+      mediaRecorder = mime ? new MediaRecorder(mediaStream, { mimeType: mime }) : new MediaRecorder(mediaStream)
+    } catch {
+      mediaRecorder = new MediaRecorder(mediaStream)
+    }
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data) }
+    mediaRecorder.onstop = async () => {
+      const type = mediaRecorder?.mimeType || "audio/webm"
+      const blob = new Blob(audioChunks, { type })
+      audioChunks = []
+      if (blob.size === 0) return
+      // map mime -> OpenRouter format token
+      const fmt = type.includes("mp4") ? "mp4" : type.includes("ogg") ? "ogg" : "webm"
+      setTranscribing(true)
+      try {
+        const b64 = await blobToBase64(blob)
+        const resp = await fetch("/api/audio/transcribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ audio: b64, format: fmt }),
+        })
+        if (resp.ok) {
+          const data = await resp.json()
+          const text = (data?.text || "").trim()
+          if (text) {
+            // Append to any existing typed text, then push through the editor's
+            // real setter (prompt.set) so placeholder clears + send enables.
+            const existingText = prompt
+              .current()
+              .filter((p: any) => p.type === "text")
+              .map((p: any) => p.content)
+              .join("")
+            const full = existingText.trim() ? existingText.trimEnd() + " " + text : text
+            prompt.set([{ type: "text", content: full, start: 0, end: full.length }], full.length)
+            requestAnimationFrame(() => {
+              editorRef.focus()
+              setCursorPosition(editorRef, full.length)
+            })
+          }
+        }
+      } catch {
+        // network/transcription failure -> silently ignore (button returns to idle)
+      } finally {
+        setTranscribing(false)
+      }
+    }
+    mediaRecorder.start()
+    setRecording(true)
+  }
+
+  const toggleRecording = () => {
+    if (recording()) stopRecording()
+    else void startRecording()
+  }
+
+  onCleanup(() => { try { stopRecording() } catch {} })
+
   const focusEditorEnd = () => {
     requestAnimationFrame(() => {
       editorRef.focus()
@@ -1570,6 +1670,23 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   </Show>
                   <ComposerModelControl state={modelControlState()} />
                 </div>
+                <Tooltip placement="top" value="Voice input">
+                  <IconButton
+                    data-action="prompt-mic"
+                    type="button"
+                    icon={transcribing() ? "loader" : "microphone"}
+                    variant="ghost"
+                    class="size-7 rounded-md p-[6px] mr-1"
+                    classList={{
+                      "text-v2-icon-icon-muted": !recording(),
+                      "!text-[#3fb950]": recording(),
+                      "animate-pulse": recording() || transcribing(),
+                    }}
+                    onClick={toggleRecording}
+                    disabled={transcribing() || store.mode !== "normal"}
+                    aria-label="Voice input"
+                  />
+                </Tooltip>
                 <Tooltip placement="top" inactive={!working() && blank()} value={tip()}>
                   <IconButton
                     data-action="prompt-submit"
