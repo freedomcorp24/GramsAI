@@ -21,7 +21,7 @@ export const { use: useVoice, provider: VoiceProvider } = createSimpleContext({
     return {
       open,
       show: () => setOpen(true),
-      hide: () => { setOpen(false); setActiveSession(undefined) },
+      hide: () => setOpen(false),
       pendingSession,
       setPendingSession: (id: string | undefined) => setPendingSession(id),
       activeSession,

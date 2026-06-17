@@ -1215,9 +1215,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const voice = useVoice()
 
   const sendToSession = async (text: string, onChunk?: (sentence: string) => void): Promise<string> => {
-    // Reuse priority: the real route session, else the session this voice
-    // conversation already created. Only create a NEW one if neither exists —
-    // otherwise every turn would spawn a fresh chat.
+    // Voice ALWAYS uses its own dedicated session — never the route's existing
+    // chat. Piggybacking an existing (coding) session caused live-delta sync
+    // conflicts: deltas didn't reach us, we fell through to the idle-timeout
+    // fallback (1-2 min wait), and the turn didn't render in that chat's view.
+    // Reuse this voice conversation's own session across turns; create once.
     let sessionID = params.id || voice.activeSession?.()
     if (!sessionID) {
       try {
@@ -1248,12 +1250,44 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     const modelID = "Voice LLM"
     const voiceAgentName = "Voice"
 
-    // Wait for THIS session to go idle (turn complete), then read the final
-    // assistant TEXT (not reasoning). Event-driven; scales to any length.
-    const idle = new Promise<void>((resolve) => {
+    // STREAMING (Voice LLM has reasoning OFF, so every text delta is pure answer):
+    // subscribe to message.part.delta (field=text), accumulate, and emit each
+    // COMPLETE sentence to onChunk as it arrives so TTS speaks while the model
+    // is still generating. session.idle ends the turn + flushes any tail.
+    let full = ""
+    let pending = ""
+    const flushSentences = () => {
+      const matches = pending.match(/[^.!?\n]*[.!?\n]+/g)
+      if (!matches) return
+      let consumed = 0
+      for (const m of matches) {
+        const sentence = m.trim()
+        if (sentence && onChunk) { console.log("[voice] sentence emit at", Date.now(), JSON.stringify(sentence.slice(0,30))); onChunk(sentence) }
+        consumed += m.length
+      }
+      pending = pending.slice(consumed)
+    }
+
+    const done = new Promise<void>((resolve) => {
       let settled = false
-      const finish = () => { if (settled) return; settled = true; try { unsub() } catch {}; clearTimeout(timer); resolve() }
-      const unsub = sdk.event.on("session.idle", (ev: any) => {
+      const finish = () => {
+        if (settled) return; settled = true
+        try { unsubD() } catch {}; try { unsubIdle() } catch {}; clearTimeout(timer)
+        const tail = pending.trim()
+        if (tail && onChunk) onChunk(tail)
+        pending = ""
+        resolve()
+      }
+      const unsubD = sdk.event.on("message.part.delta", (ev: any) => {
+        const p = ev?.properties
+        if (!p || p.sessionID !== sessionID) return
+        if (p.field && p.field !== "text") return
+        const d = p.delta || ""
+        if (!full) console.log("[voice] FIRST delta at", Date.now())
+        full += d; pending += d
+        flushSentences()
+      })
+      const unsubIdle = sdk.event.on("session.idle", (ev: any) => {
         if (ev?.properties?.sessionID === sessionID) finish()
       })
       const timer = setTimeout(finish, 180000)
@@ -1272,23 +1306,22 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       console.error("[voice] promptAsync failed", e); return ""
     }
 
-    await idle
+    await done
 
-    // read the NEW assistant message; take ONLY text parts (skip reasoning).
-    try {
-      const { data } = await sdk.client.session.messages({ directory: sdk.directory, sessionID })
-      const done = ((data ?? []) as any[])
-        .filter((mm) => mm?.info?.role === "assistant" && !beforeIDs.has(mm.info.id))
-        .sort((x, y) => (x.info.time?.created ?? 0) - (y.info.time?.created ?? 0))
-        .pop()
-      if (done) {
-        const parts = (done.parts ?? []) as any[]
-        const reply = parts.filter((p) => p.type === "text" && p.text).map((p) => p.text).join(" ").trim()
-        if (reply && onChunk) onChunk(reply)
-        return reply
-      }
-    } catch (e) { console.error("[voice] reply fetch failed", e) }
-    return ""
+    if (!full.trim()) {
+      try {
+        const { data } = await sdk.client.session.messages({ directory: sdk.directory, sessionID })
+        const m2 = ((data ?? []) as any[])
+          .filter((mm) => mm?.info?.role === "assistant" && !beforeIDs.has(mm.info.id))
+          .sort((x, y) => (x.info.time?.created ?? 0) - (y.info.time?.created ?? 0))
+          .pop()
+        if (m2) {
+          full = ((m2.parts ?? []) as any[]).filter((p) => p.type === "text" && p.text).map((p) => p.text).join(" ").trim()
+          if (full && onChunk) onChunk(full)
+        }
+      } catch (e) { console.error("[voice] reply fetch failed", e) }
+    }
+    return full.trim()
   }
 
   // Register this session-bound sender with the persistent voice overlay. The

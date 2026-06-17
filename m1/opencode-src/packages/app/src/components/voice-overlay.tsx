@@ -100,42 +100,49 @@ export function VoiceOverlay(props: VoiceOverlayProps) {
   let playing = false
   let cancelSpeak = false
   let micAnalyser: AnalyserNode | null = null
+  let ttsQueue: string[] = []
+  let queueRunning = false
 
   const stopPlayback = () => {
     cancelSpeak = true
+    ttsQueue = []
     try { currentSource?.stop() } catch {}
     currentSource = null
     playing = false
   }
 
-  const speak = async (text: string) => {
-    if (!text.trim() || !audioCtx) return
+  // Fetch + decode TTS audio for one sentence (network). Returns an AudioBuffer.
+  const fetchAudio = async (text: string): Promise<AudioBuffer | null> => {
+    if (!text.trim() || !audioCtx) return null
     const ctx = audioCtx
-    try { if (ctx.state === "suspended") await ctx.resume() } catch {}
-    cancelSpeak = false
     const resp = await fetch("/api/audio/speech", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
       body: JSON.stringify({ text, voice: selectedVoice() }),
     })
-    console.log("[voice] TTS status:", resp.status)
-    if (!resp.ok || cancelSpeak || unmounted) return
+    if (!resp.ok || cancelSpeak || unmounted) return null
     const ctype = resp.headers.get("Content-Type") || ""
     const bytes = await resp.arrayBuffer()
-    let buf: AudioBuffer
+    if (cancelSpeak || unmounted) return null
     if (ctype.includes("pcm")) {
       const mm = /rate=(\d+)/.exec(ctype)
       const rate = mm ? parseInt(mm[1]) : 24000
       const view = new DataView(bytes)
       const n = Math.floor(bytes.byteLength / 2)
-      buf = ctx.createBuffer(1, n, rate)
-      const ch = buf.getChannelData(0)
+      const b = ctx.createBuffer(1, n, rate)
+      const ch = b.getChannelData(0)
       for (let i = 0; i < n; i++) ch[i] = view.getInt16(i * 2, true) / 0x8000
-    } else {
-      buf = await ctx.decodeAudioData(bytes.slice(0))
+      return b
     }
-    if (cancelSpeak || unmounted) return
+    return await ctx.decodeAudioData(bytes.slice(0))
+  }
+
+  // Play a decoded AudioBuffer to completion, driving the visualizer.
+  const playBuffer = async (buf: AudioBuffer): Promise<void> => {
+    if (!audioCtx || cancelSpeak || unmounted) return
+    const ctx = audioCtx
+    try { if (ctx.state === "suspended") await ctx.resume() } catch {}
     const src = ctx.createBufferSource()
     src.buffer = buf
     const analyser = ctx.createAnalyser()
@@ -160,6 +167,34 @@ export function VoiceOverlay(props: VoiceOverlayProps) {
     setAmplitude(0)
   }
 
+  // Sequential sentence queue: play sentence N while N+1 is fetched. Barge-in
+  // clears the queue (stopPlayback). Order preserved.
+  const enqueueSentence = (sentence: string) => {
+    if (!sentence.trim() || cancelSpeak) return
+    ttsQueue.push(sentence.trim())
+    void runQueue()
+  }
+  const runQueue = async () => {
+    if (queueRunning) return
+    queueRunning = true
+    try {
+      // Pipeline: fetch the current sentence's audio, and while it PLAYS,
+      // prefetch the next sentence's audio — so there's no network gap between
+      // sentences. Playback stays strictly in order.
+      let nextFetch: Promise<AudioBuffer | null> | null = null
+      while (!cancelSpeak && !unmounted && (ttsQueue.length > 0 || nextFetch)) {
+        const buf = nextFetch ? await nextFetch : await fetchAudio(ttsQueue.shift()!)
+        nextFetch = null
+        if (cancelSpeak || unmounted) break
+        // kick off the next fetch BEFORE playing the current buffer
+        if (ttsQueue.length > 0) nextFetch = fetchAudio(ttsQueue.shift()!)
+        if (buf) await playBuffer(buf)
+      }
+    } finally {
+      queueRunning = false
+    }
+  }
+
   const handleUtterance = async (samples: Float32Array) => {
     if (!active || unmounted || busy) return
     busy = true
@@ -179,12 +214,20 @@ export function VoiceOverlay(props: VoiceOverlayProps) {
       if (!text || !text.trim()) { if (active) setState("listening"); return }
 
       setReplyText("")
+      cancelSpeak = false
+      ttsQueue = []
       setState("thinking")
-      const reply = await props.sendToSession(text.trim())
+      // stream: each complete sentence is spoken as it arrives; also append to
+      // the on-screen text so the overlay shows the reply building up.
+      const reply = await props.sendToSession(text.trim(), (sentence) => {
+        if (cancelSpeak || unmounted) return
+        setReplyText((prev) => (prev ? prev + " " : "") + sentence)
+        enqueueSentence(sentence)
+      })
       console.log("[voice] reply len:", reply.length)
-      if (active && !unmounted && reply && reply.trim()) {
-        setReplyText(reply)
-        await speak(reply)
+      // wait for the audio queue to drain before returning to listening
+      while ((queueRunning || playing) && !cancelSpeak && !unmounted) {
+        await new Promise((r) => setTimeout(r, 80))
       }
       if (active && !unmounted) setState("listening")
     } catch (e) {
