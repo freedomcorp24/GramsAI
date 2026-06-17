@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"log"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -43,6 +44,7 @@ func lookupUserByID(ctx context.Context, pool *pgxpool.Pool, uid int64) (*llmUse
 func TranscribeHandler(pool *pgxpool.Pool, openrouterKey string, getUID func(*http.Request) int64) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		uid := getUID(r)
+		log.Printf("[STT] request uid=%d", uid)
 		if uid <= 0 {
 			http.Error(w, `{"error":{"message":"unauthorized"}}`, http.StatusUnauthorized)
 			return
@@ -152,6 +154,7 @@ func TranscribeHandler(pool *pgxpool.Pool, openrouterKey string, getUID func(*ht
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+		log.Printf("[STT] result textlen=%d", len(out.Text))
 		w.Write([]byte(`{"text":` + jsonString(out.Text) + `}`))
 	}
 }

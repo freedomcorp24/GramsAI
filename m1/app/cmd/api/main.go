@@ -194,6 +194,9 @@ func main() {
 	// Voice STT: browser mic -> base64 audio -> OpenRouter whisper-large-v3 -> {text}.
 	// Cookie-authed (getUID), same access gate + metering as chat.
 	r.Post("/api/audio/transcribe", proxy.TranscribeHandler(pool, envOr("OPENROUTER_API_KEY", ""), getUID))
+	// Voice TTS: text -> OpenRouter (Gemini primary, Grok auto-fallback on refusal) -> audio bytes.
+	r.Post("/api/debug/log", proxy.DebugLogHandler())
+	r.Post("/api/audio/speech", proxy.SpeechHandler(pool, envOr("OPENROUTER_API_KEY", ""), getUID))
 	// GRAMSAI_MEM_SEARCH: container's search_memory tool -> vector search over episodes.
 	r.Post("/api/memory/search", memStore.SearchHandler(pool, envOr("OPENROUTER_API_KEY", ""), proxy.ResolveUID))
 

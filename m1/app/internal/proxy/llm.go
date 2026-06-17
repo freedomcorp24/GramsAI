@@ -40,6 +40,9 @@ var AliasToModel = map[string]string{
 	"Vision":     "meta-llama/llama-4-maverick",
 	"Image Gen":  "black-forest-labs/flux.2-pro",
 	"Voice":      "openai/whisper-large-v3",
+	"Voice LLM":  "deepseek/deepseek-v4-flash-20260423",
+	"Voice TTS":      "google/gemini-3.1-flash-tts-preview",
+	"Voice TTS Alt":  "x-ai/grok-voice-tts-1.0",
 }
 
 // tierAllows maps tier -> set of specialties the tier may use. Basic is limited
@@ -176,6 +179,11 @@ func LLMHandler(pool *pgxpool.Pool, store *memory.Store, openrouterKey string) h
 			realModel = AliasToModel["General"]
 		}
 		body["model"] = realModel
+		if alias == "Voice LLM" {
+			// Voice answers must be instant: disable chain-of-thought so the
+			// reply streams immediately and no reasoning leaks into TTS.
+			body["reasoning"] = map[string]interface{}{"enabled": false}
+		}
 		if alias == "Image Gen" {
 			body["modalities"] = []string{"image"}
 		}

@@ -1,4 +1,6 @@
 import "@/index.css"
+import { VoiceProvider, useVoice } from "@/context/voice"
+import { VoiceOverlay } from "@/components/voice-overlay"
 import * as Sentry from "@sentry/solid"
 import { I18nProvider } from "@opencode-ai/ui/context"
 import { DialogProvider } from "@opencode-ai/ui/context/dialog"
@@ -9,7 +11,7 @@ import { Font } from "@opencode-ai/ui/font"
 import { Splash } from "@opencode-ai/ui/logo"
 import { ThemeProvider } from "@opencode-ai/ui/theme/context"
 import { MetaProvider } from "@solidjs/meta"
-import { type BaseRouterProps, Navigate, Route, Router } from "@solidjs/router"
+import { type BaseRouterProps, Navigate, Route, Router, useNavigate } from "@solidjs/router"
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query"
 import { Effect } from "effect"
 import {
@@ -109,6 +111,28 @@ function BodyDesignClass() {
   return null
 }
 
+function VoiceOverlayHost() {
+  const voice = useVoice()
+  const navigate = useNavigate()
+  const onClose = () => {
+    voice.hide()
+    // If a voice turn created a new session, land the user on it now (after the
+    // overlay closes — never mid-turn, which would remount the composer).
+    const target = voice.pendingSession()
+    if (target) {
+      voice.setPendingSession(undefined)
+      navigate(target)
+    }
+  }
+  return (
+    <VoiceOverlay
+      open={voice.open()}
+      onClose={onClose}
+      sendToSession={voice.send}
+      voice={"Kore"}
+    />
+  )
+}
 function AppShellProviders(props: ParentProps) {
   return (
     <SettingsProvider>
@@ -119,7 +143,10 @@ function AppShellProviders(props: ParentProps) {
             <ModelsProvider>
               <CommandProvider>
                 <HighlightsProvider>
-                  <Layout>{props.children}</Layout>
+                  <VoiceProvider>
+                    <Layout>{props.children}</Layout>
+                    <VoiceOverlayHost />
+                  </VoiceProvider>
                 </HighlightsProvider>
               </CommandProvider>
             </ModelsProvider>

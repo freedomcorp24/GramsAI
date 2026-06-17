@@ -8,6 +8,7 @@ import {
   For,
   Show,
   onCleanup,
+  onMount,
   createMemo,
   createSignal,
   createResource,
@@ -67,6 +68,7 @@ import {
   promptLength,
 } from "./prompt-input/history"
 import { createPromptSubmit, type FollowupDraft } from "./prompt-input/submit"
+import { useVoice } from "@/context/voice"
 import { PromptPopover, type AtOption, type SlashCommand } from "./prompt-input/slash-popover"
 import { PromptContextItems } from "./prompt-input/context-items"
 import { PromptImageAttachments } from "./prompt-input/image-attachments"
@@ -77,6 +79,7 @@ import { useQueries } from "@tanstack/solid-query"
 import { useQueryOptions } from "@/context/server-sync"
 import { pathKey } from "@/utils/path-key"
 import { base64Encode } from "@opencode-ai/core/util/encode"
+import { Identifier } from "@/utils/id"
 import { displayName } from "@/pages/layout/helpers"
 
 interface PromptInputProps {
@@ -1207,6 +1210,96 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return permission.isAutoAccepting(id, sdk.directory)
   })
 
+  // --- VOICE CHAT (full overlay): sends a turn through the REAL session and
+  // resolves with the assistant's final reply text, so voice == typing. ---
+  const voice = useVoice()
+
+  const sendToSession = async (text: string, onChunk?: (sentence: string) => void): Promise<string> => {
+    // Reuse priority: the real route session, else the session this voice
+    // conversation already created. Only create a NEW one if neither exists —
+    // otherwise every turn would spawn a fresh chat.
+    let sessionID = params.id || voice.activeSession?.()
+    if (!sessionID) {
+      try {
+        console.log("[voice] no session — creating one")
+        const { data } = await sdk.client.session.create({ body: { directory: sdk.directory } })
+        sessionID = (data as any)?.id
+        if (!sessionID) { console.error("[voice] session create returned no id"); return "" }
+        // remember it for the rest of this voice conversation (reused above) +
+        // for navigation on overlay close. No mid-turn navigate (would remount).
+        voice.setActiveSession?.(sessionID)
+        voice.setPendingSession?.(`/${base64Encode(sdk.directory)}/session/${sessionID}`)
+      } catch (e) {
+        console.error("[voice] session create failed", e); return ""
+      }
+    }
+
+    // snapshot existing assistant message IDs so we read only the NEW reply.
+    let beforeIDs = new Set<string>()
+    try {
+      const { data } = await sdk.client.session.messages({ directory: sdk.directory, sessionID })
+      for (const m of (data ?? []) as any[]) if (m?.info?.role === "assistant") beforeIDs.add(m.info.id)
+    } catch (e) { console.error("[voice] snapshot failed", e) }
+
+    // Voice is PINNED to the dedicated fast path regardless of composer selection:
+    // the "Voice" agent runs the "Voice LLM" model (qwen3-235b) with reasoning
+    // forced OFF on the gateway — instant, multilingual, no reasoning leak into TTS.
+    const providerID = "gramsai"
+    const modelID = "Voice LLM"
+    const voiceAgentName = "Voice"
+
+    // Wait for THIS session to go idle (turn complete), then read the final
+    // assistant TEXT (not reasoning). Event-driven; scales to any length.
+    const idle = new Promise<void>((resolve) => {
+      let settled = false
+      const finish = () => { if (settled) return; settled = true; try { unsub() } catch {}; clearTimeout(timer); resolve() }
+      const unsub = sdk.event.on("session.idle", (ev: any) => {
+        if (ev?.properties?.sessionID === sessionID) finish()
+      })
+      const timer = setTimeout(finish, 180000)
+    })
+
+    try {
+      await sdk.client.session.promptAsync({
+        sessionID,
+        agent: voiceAgentName,
+        model: { providerID, modelID },
+        variant: local.model.variant.current(),
+        messageID: Identifier.ascending("message"),
+        parts: [{ id: Identifier.ascending("part"), type: "text", text }],
+      } as any)
+    } catch (e) {
+      console.error("[voice] promptAsync failed", e); return ""
+    }
+
+    await idle
+
+    // read the NEW assistant message; take ONLY text parts (skip reasoning).
+    try {
+      const { data } = await sdk.client.session.messages({ directory: sdk.directory, sessionID })
+      const done = ((data ?? []) as any[])
+        .filter((mm) => mm?.info?.role === "assistant" && !beforeIDs.has(mm.info.id))
+        .sort((x, y) => (x.info.time?.created ?? 0) - (y.info.time?.created ?? 0))
+        .pop()
+      if (done) {
+        const parts = (done.parts ?? []) as any[]
+        const reply = parts.filter((p) => p.type === "text" && p.text).map((p) => p.text).join(" ").trim()
+        if (reply && onChunk) onChunk(reply)
+        return reply
+      }
+    } catch (e) { console.error("[voice] reply fetch failed", e) }
+    return ""
+  }
+
+  // Register this session-bound sender with the persistent voice overlay. The
+  // overlay lives above the router; whenever this composer (re)mounts for the
+  // current route it registers a fresh sender, so voice always targets the
+  // active session — including a brand-new one created mid-conversation.
+  onMount(() => {
+    voice.registerSender(sendToSession)
+    onCleanup(() => voice.registerSender(undefined))
+  })
+
   const { abort, handleSubmit } = createPromptSubmit({
     info,
     imageAttachments,
@@ -1538,6 +1631,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   return (
     <div class="relative size-full flex flex-col gap-0">
       {(promptReady(), null)}
+
       <PromptPopover
         popover={store.popover}
         setSlashPopoverRef={(el) => (slashPopoverRef = el)}
@@ -1687,18 +1781,35 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                     aria-label="Voice input"
                   />
                 </Tooltip>
-                <Tooltip placement="top" inactive={!working() && blank()} value={tip()}>
-                  <IconButton
-                    data-action="prompt-submit"
-                    type="submit"
-                    disabled={!working() && blank()}
-                    tabIndex={store.mode === "normal" ? undefined : -1}
-                    icon={stopping() ? "stop" : store.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
-                    variant="primary"
-                    class="size-7 rounded-md p-[6px] !bg-[#3fb950] !text-[#04210c] shadow-[0_6px_18px_-6px_rgba(63,185,80,0.7)] hover:!brightness-110 disabled:opacity-50"
-                    aria-label={stopping() ? language.t("prompt.action.stop") : language.t("prompt.action.send")}
-                  />
-                </Tooltip>
+                <Show
+                  when={blank() && !working()}
+                  fallback={
+                    <Tooltip placement="top" inactive={!working() && blank()} value={tip()}>
+                      <IconButton
+                        data-action="prompt-submit"
+                        type="submit"
+                        disabled={!working() && blank()}
+                        tabIndex={store.mode === "normal" ? undefined : -1}
+                        icon={stopping() ? "stop" : store.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
+                        variant="primary"
+                        class="size-7 rounded-md p-[6px] !bg-[#3fb950] !text-[#04210c] shadow-[0_6px_18px_-6px_rgba(63,185,80,0.7)] hover:!brightness-110 disabled:opacity-50"
+                        aria-label={stopping() ? language.t("prompt.action.stop") : language.t("prompt.action.send")}
+                      />
+                    </Tooltip>
+                  }
+                >
+                  <Tooltip placement="top" value="Voice chat">
+                    <IconButton
+                      data-action="prompt-voice"
+                      type="button"
+                      icon="waveform"
+                      variant="primary"
+                      class="size-7 rounded-md p-[6px] !bg-[#3fb950] !text-[#04210c] shadow-[0_6px_18px_-6px_rgba(63,185,80,0.7)] hover:!brightness-110"
+                      onClick={() => voice.show()}
+                      aria-label="Voice chat"
+                    />
+                  </Tooltip>
+                </Show>
               </div>
             </DockShellForm>
             <Show when={false && newSession() && selectedProject()}>
