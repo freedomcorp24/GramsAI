@@ -1,10 +1,11 @@
-import { createEffect, createMemo, createSignal, For, Show, onMount } from "solid-js"
+import { createEffect, createMemo, createSignal, For, Show, onMount, onCleanup } from "solid-js"
 import { useNavigate, useParams } from "@solidjs/router"
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import type { Session } from "@opencode-ai/sdk/v2/client"
 import { useLayout, type LocalProject } from "@/context/layout"
-import { useServerSync } from "@/context/server-sync"
+import { useServerSync, onGramsaiSessionChanged } from "@/context/server-sync"
 import { useServer } from "@/context/server"
+import { useServerSDK } from "@/context/server-sdk"
 import { sessionTitle } from "@/utils/session-title"
 import { pathKey } from "@/utils/path-key"
 import { sortedRootSessions, projectForSession } from "@/pages/layout/helpers"
@@ -36,6 +37,7 @@ export function LeftNav(props: { onOpenSettings: (tab?: string) => void }) {
   const layout = useLayout()
   const sync = useServerSync()
   const server = useServer()
+  const serverSDK = useServerSDK()
   const navigate = useNavigate()
   const params = useParams()
 
@@ -109,6 +111,22 @@ export function LeftNav(props: { onOpenSettings: (tab?: string) => void }) {
       try { layout.projects.open(DEFAULT_WORKSPACE) } catch { /* ignore */ }
     }
     void loadChats()
+  })
+
+  // Keep the sidebar list reactive to server-driven session changes. The chat
+  // list is loaded via a direct /session fetch (the SDK store mis-handles the
+  // empty-directory global view), so the list is NOT auto-reconciled. Subscribe
+  // to session lifecycle events and refetch (debounced) so new chats appear,
+  // deleted/archived chats disappear (no stale 404 clicks), and renames/moves
+  // reflect immediately — without a manual page refresh.
+  onMount(() => {
+    let t: ReturnType<typeof setTimeout> | undefined
+    const refetch = () => { clearTimeout(t); t = setTimeout(() => void loadChats(), 150) }
+    // Refetch the (direct-fetch) chat list whenever ANY session.* event fires
+    // anywhere — fires before the per-directory store gate, so new/delete/
+    // delete-all/rename/archive/project-move all update the sidebar live.
+    const off = onGramsaiSessionChanged(refetch)
+    onCleanup(() => { clearTimeout(t); off() })
   })
 
   const chats = createMemo<Session[]>(() => chatList())
