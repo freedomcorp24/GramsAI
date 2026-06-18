@@ -38,7 +38,9 @@ export function createPromptAttachments(input: PromptAttachmentsInput) {
   const prompt = usePrompt()
   const language = useLanguage()
   const [pendingCount, setPendingCount] = createSignal(0)
-  const isUploading = () => pendingCount() > 0
+  const isUploading = () =>
+    pendingCount() > 0 ||
+    prompt.current().some((p) => p.type === "image" && !p.uploadedPath)
 
   const warn = () => {
     showToast({
@@ -48,10 +50,7 @@ export function createPromptAttachments(input: PromptAttachmentsInput) {
   }
 
   const patchAttachment = (id: string, patch: Partial<ImageAttachmentPart>) => {
-    const next = prompt.current().map((part) =>
-      part.type === "image" && part.id === id ? { ...part, ...patch } : part,
-    )
-    prompt.set(next, prompt.cursor())
+    prompt.patch(id, patch)
   }
 
   const uploadToWorkspace = (file: File, id: string) =>
@@ -65,19 +64,16 @@ export function createPromptAttachments(input: PromptAttachmentsInput) {
           patchAttachment(id, { uploadProgress: Math.round((e.loaded / e.total) * 100) })
         }
       }
+      const fail = (why: string) => { showToast({ title: "Upload failed", description: why }); resolve() }
       xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const res = JSON.parse(xhr.responseText)
-            if (res && typeof res.path === "string") {
-              patchAttachment(id, { uploadedPath: res.path, uploadProgress: 100 })
-            }
-          } catch {}
-        }
-        resolve()
+        if (xhr.status < 200 || xhr.status >= 300) { fail("server returned " + xhr.status); return }
+        let res: any = null
+        try { res = JSON.parse(xhr.responseText) } catch { fail("unexpected response (not routed to gateway?)"); return }
+        if (res && typeof res.path === "string") { patchAttachment(id, { uploadedPath: res.path, uploadProgress: 100 }); resolve(); return }
+        fail(res && res.error ? String(res.error) : "no path returned")
       }
-      xhr.onerror = () => resolve()
-      xhr.ontimeout = () => resolve()
+      xhr.onerror = () => fail("network error")
+      xhr.ontimeout = () => fail("timed out")
       xhr.timeout = 120000
       xhr.send(file)
     })

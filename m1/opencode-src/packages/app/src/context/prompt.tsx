@@ -2,7 +2,7 @@ import { createSimpleContext } from "@opencode-ai/ui/context"
 import { checksum } from "@opencode-ai/core/util/encode"
 import { useParams } from "@solidjs/router"
 import { batch, createMemo, createRoot, getOwner, onCleanup } from "solid-js"
-import { createStore, type SetStoreFunction } from "solid-js/store"
+import { createStore, produce, type SetStoreFunction } from "solid-js/store"
 import type { FileSelection } from "@/context/file"
 import { Persist, persisted } from "@/utils/persist"
 
@@ -145,6 +145,15 @@ function createPromptActions(
         setStore("cursor", 0)
       })
     },
+    patch(id: string, patch: Partial<ImageAttachmentPart>) {
+      setStore(
+        "prompt",
+        produce((parts: Prompt) => {
+          const p = parts.find((x) => x.type === "image" && x.id === id)
+          if (p) Object.assign(p, patch)
+        }),
+      )
+    },
   }
 }
 
@@ -222,6 +231,7 @@ function createPromptSession(dir: string, id: string | undefined) {
       },
     },
     set: actions.set,
+    patch: actions.patch,
     reset: actions.reset,
   }
 }
@@ -293,6 +303,7 @@ export const { use: usePrompt, provider: PromptProvider } = createSimpleContext(
         replaceComments: (items: FileContextItem[]) => session().context.replaceComments(items),
       },
       set: (prompt: Prompt, cursorPosition?: number, scope?: Scope) => pick(scope).set(prompt, cursorPosition),
+      patch: (id: string, p: Partial<ImageAttachmentPart>, scope?: Scope) => pick(scope).patch(id, p),
       reset: (scope?: Scope) => pick(scope).reset(),
     }
   },

@@ -1333,7 +1333,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     onCleanup(() => voice.registerSender(undefined))
   })
 
-  const { abort, handleSubmit } = createPromptSubmit({
+  const { abort, handleSubmit: handleSubmitInner } = createPromptSubmit({
     info,
     imageAttachments,
     commentCount,
@@ -1356,6 +1356,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     onAbort: props.onAbort,
     onSubmit: props.onSubmit,
   })
+  const handleSubmit = (...args: Parameters<typeof handleSubmitInner>) => {
+    if (isUploading()) return
+    return handleSubmitInner(...args)
+  }
 
   const handleKeyDown = (event: KeyboardEvent) => {
     if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "u") {

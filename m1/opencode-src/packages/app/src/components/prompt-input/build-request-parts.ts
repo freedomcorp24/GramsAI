@@ -217,7 +217,8 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
     } satisfies PromptRequestPart
   })
 
-  requestParts.push(...files, ...context, ...agents, ...imageNotes, ...images)
+  void images
+  requestParts.push(...files, ...context, ...agents, ...imageNotes)
 
   return {
     requestParts,
