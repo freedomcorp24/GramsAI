@@ -73,7 +73,7 @@ ssh "$M2" 'tar czf - -C /root/gramsai-agent main.go go.mod' > "$REPO/m2/gramsai-
 say "Collecting M2: image build context (excluding 142M opencode binary — see docs to obtain)"
 ssh "$M2" 'tar czf - -C /root/gramsai-image \
   Dockerfile entrypoint.sh bridge.py memory-search.js tavily-search.js \
-  image-gen.js workspace-download.js gramsai-config.tar.gz' > "$REPO/m2/gramsai-image/image-ctx.tar.gz"
+  image-gen.js read-image.js workspace-download.js gramsai-config.tar.gz' > "$REPO/m2/gramsai-image/image-ctx.tar.gz"
 ( cd "$REPO/m2/gramsai-image" && tar xzf image-ctx.tar.gz && rm -f image-ctx.tar.gz )
 
 say "Collecting M2: systemd + docker drop-in"

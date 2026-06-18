@@ -66,8 +66,11 @@ COPY memory-search.js /usr/local/bin/memory-search.js
 RUN chmod +x /usr/local/bin/memory-search.js
 RUN node -c /usr/local/bin/memory-search.js && echo "MEM JS OK"
 COPY image-gen.js /usr/local/bin/image-gen.js
+COPY read-image.js /usr/local/bin/read-image.js
 RUN chmod +x /usr/local/bin/image-gen.js
 RUN node -c /usr/local/bin/image-gen.js && echo "IMG JS OK"
+RUN chmod +x /usr/local/bin/read-image.js
+RUN node -c /usr/local/bin/read-image.js && echo "READ IMG JS OK"
 COPY workspace-download.js /usr/local/bin/workspace-download.js
 RUN chmod +x /usr/local/bin/workspace-download.js
 RUN node -c /usr/local/bin/workspace-download.js && echo "DL OK"
@@ -86,5 +89,35 @@ RUN weasyprint --version && pandoc --version | head -1 && ffmpeg -version | head
 # Verify the browser bridge toolchain
 RUN chromium-browser --version && python3 -c "import websockets, aiohttp; print('BRIDGE LIBS OK')" \
   && echo "BROWSER TOOLS OK"
+# --- Upload-processing + privacy toolchain (added 2026-06-17) ---
+# Document/OCR/archive/media + crypto tools used by the file-upload pipeline.
+# (jq, zip, unzip, openssl already installed above.)
+RUN apk add --no-cache \
+      tesseract-ocr \
+      poppler-utils \
+      p7zip \
+      gnupg \
+      age \
+      exiftool \
+      libqrencode-tools \
+      zbar \
+      libheif-tools \
+      sqlite
+# PDF text extraction (pure-python; complements poppler's pdftotext/pdftoppm).
+RUN pip install --no-cache-dir --break-system-packages pypdf
+# Verify the upload + privacy toolchain landed.
+RUN tesseract --version 2>&1 | head -1 \
+  && pdftotext -v 2>&1 | head -1 \
+  && 7z i >/dev/null 2>&1 && echo "7z ok" \
+  && gpg --version | head -1 \
+  && age --version \
+  && exiftool -ver \
+  && qrencode --version 2>&1 | head -1 \
+  && zbarimg --version 2>&1 | head -1 \
+  && heif-convert --version 2>&1 | head -1 || true \
+  && sqlite3 --version | head -1 \
+  && python3 -c "import pypdf; print('pypdf', pypdf.__version__)" \
+  && echo "UPLOAD TOOLS OK"
+
 WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
