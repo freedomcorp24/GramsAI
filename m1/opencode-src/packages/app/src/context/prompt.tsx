@@ -33,6 +33,8 @@ export interface ImageAttachmentPart {
   filename: string
   mime: string
   dataUrl: string
+  uploadedPath?: string
+  uploadProgress?: number
 }
 
 export type ContentPart = TextPart | FileAttachmentPart | AgentPart | ImageAttachmentPart

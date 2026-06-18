@@ -182,6 +182,31 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
     ]
   })
 
+
+  // For uploaded images that were written to the workspace, tell the model the
+  // on-disk path so it can call the read_image tool (works in any agent).
+  const uploadedPaths = input.images
+    .map((a) => a.uploadedPath)
+    .filter((p): p is string => typeof p === "string" && p.length > 0)
+  const imageNotes = uploadedPaths.length
+    ? [
+        {
+          id: Identifier.ascending("part"),
+          type: "text" as const,
+          text:
+            "[Attached image" +
+            (uploadedPaths.length > 1 ? "s" : "") +
+            " saved to the workspace. To view " +
+            (uploadedPaths.length > 1 ? "them" : "it") +
+            ", call the read_image tool with " +
+            (uploadedPaths.length > 1 ? "these paths" : "this path") +
+            ": " +
+            uploadedPaths.join(", ") +
+            "]",
+          synthetic: true,
+        } satisfies PromptRequestPart,
+      ]
+    : []
   const images = input.images.map((attachment) => {
     return {
       id: Identifier.ascending("part"),
@@ -192,7 +217,7 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
     } satisfies PromptRequestPart
   })
 
-  requestParts.push(...files, ...context, ...agents, ...images)
+  requestParts.push(...files, ...context, ...agents, ...imageNotes, ...images)
 
   return {
     requestParts,

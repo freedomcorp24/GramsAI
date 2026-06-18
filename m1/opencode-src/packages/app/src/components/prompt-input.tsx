@@ -1176,7 +1176,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return true
   }
 
-  const { addAttachments, removeAttachment, handlePaste } = createPromptAttachments({
+  const { addAttachments, removeAttachment, handlePaste, isUploading } = createPromptAttachments({
     editor: () => editorRef,
     isDialogActive: () => !!dialog.active,
     setDraggingType: (type) => setStore("draggingType", type),
@@ -1503,6 +1503,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault()
       if (event.repeat) return
+      if (isUploading()) return
       if (
         working() &&
         prompt
@@ -1821,7 +1822,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                       <IconButton
                         data-action="prompt-submit"
                         type="submit"
-                        disabled={!working() && blank()}
+                        disabled={(!working() && blank()) || isUploading()}
                         tabIndex={store.mode === "normal" ? undefined : -1}
                         icon={stopping() ? "stop" : store.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
                         variant="primary"
@@ -1974,7 +1975,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                     <IconButton
                       data-action="prompt-submit"
                       type="submit"
-                      disabled={!working() && blank()}
+                      disabled={(!working() && blank()) || isUploading()}
                       tabIndex={store.mode === "normal" ? undefined : -1}
                       icon={stopping() ? "stop" : store.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
                       variant="primary"

@@ -44,6 +44,7 @@ func main() {
 	mux.HandleFunc("/purge", authed(handlePurge))
 	mux.HandleFunc("/wipe-chats", authed(handleWipeChats))
 	mux.HandleFunc("/dl", authed(handleDownload))
+	mux.HandleFunc("/upload", authed(handleUpload))
 
 	log.Printf("control-agent listening on %s (image=%s)", listen, image)
 	srv := &http.Server{Addr: listen, Handler: mux, ReadTimeout: 30 * time.Second, WriteTimeout: 120 * time.Second}
@@ -304,6 +305,60 @@ func serveFile(w http.ResponseWriter, full string) {
 	}
 	w.WriteHeader(200)
 	_, _ = io.Copy(w, f)
+}
+
+func handleUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]any{"error": "POST required"})
+		return
+	}
+	uidStr := r.URL.Query().Get("user_id")
+	id, err := strconv.ParseInt(uidStr, 10, 64)
+	if err != nil || id <= 0 {
+		writeJSON(w, 400, map[string]any{"error": "valid user_id required"})
+		return
+	}
+	name := r.URL.Query().Get("name")
+	name = filepath.Base(strings.TrimSpace(name))
+	if name == "" || name == "." || name == "/" {
+		writeJSON(w, 400, map[string]any{"error": "valid name required"})
+		return
+	}
+	// sanitize: strip anything but safe chars, keep extension
+	safe := make([]rune, 0, len(name))
+	for _, c := range name {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' || c == '-' || c == '_' {
+			safe = append(safe, c)
+		} else {
+			safe = append(safe, '_')
+		}
+	}
+	name = string(safe)
+	dir := fmt.Sprintf("%s/user-%d/workspace/uploads", dataRoot, id)
+	if e := os.MkdirAll(dir, 0755); e != nil {
+		writeJSON(w, 500, map[string]any{"error": "mkdir: " + e.Error()})
+		return
+	}
+	full := filepath.Join(dir, name)
+	cleanDir := filepath.Clean(dir)
+	cleanFull := filepath.Clean(full)
+	if !strings.HasPrefix(cleanFull, cleanDir+string(os.PathSeparator)) {
+		writeJSON(w, 400, map[string]any{"error": "invalid path"})
+		return
+	}
+	f, e := os.Create(cleanFull)
+	if e != nil {
+		writeJSON(w, 500, map[string]any{"error": "create: " + e.Error()})
+		return
+	}
+	defer f.Close()
+	n, e := io.Copy(f, r.Body)
+	if e != nil {
+		_ = os.Remove(cleanFull)
+		writeJSON(w, 500, map[string]any{"error": "write: " + e.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "path": "/workspace/uploads/" + name, "bytes": n})
 }
 
 func handleDownload(w http.ResponseWriter, r *http.Request) {

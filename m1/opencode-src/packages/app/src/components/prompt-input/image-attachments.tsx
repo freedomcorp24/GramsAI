@@ -16,6 +16,10 @@ const imageClass =
 const removeClass =
   "absolute -top-1.5 -right-1.5 size-5 rounded-full bg-surface-raised-stronger-non-alpha border border-border-base flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-surface-raised-base-hover"
 const nameClass = "absolute bottom-0 left-0 right-0 px-1 py-0.5 bg-black/50 rounded-b-md"
+const uploadingOverlayClass =
+  "absolute inset-0 rounded-md bg-black/60 flex flex-col items-center justify-center gap-1"
+const progressTrackClass = "w-12 h-1 rounded-full bg-white/25 overflow-hidden"
+const progressFillClass = "h-full bg-[#3fb950] transition-[width] duration-150"
 
 export const PromptImageAttachments: Component<PromptImageAttachmentsProps> = (props) => {
   return (
@@ -48,6 +52,14 @@ export const PromptImageAttachments: Component<PromptImageAttachmentsProps> = (p
                 >
                   <Icon name="close" class="size-3 text-text-weak" />
                 </button>
+                <Show when={(attachment.uploadProgress ?? 100) < 100}>
+                  <div class={uploadingOverlayClass}>
+                    <div class={progressTrackClass}>
+                      <div class={progressFillClass} style={{ width: `${attachment.uploadProgress ?? 0}%` }} />
+                    </div>
+                    <span class="text-10-regular text-white">{attachment.uploadProgress ?? 0}%</span>
+                  </div>
+                </Show>
                 <div class={nameClass}>
                   <span class="text-10-regular text-white truncate block">{attachment.filename}</span>
                 </div>

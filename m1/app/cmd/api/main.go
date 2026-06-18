@@ -184,6 +184,7 @@ func main() {
 	// OpenAI-compatible LLM gateway: containers' OpenCode points here.
 	// Holds the shared OpenRouter key; meters per-user cost; maps alias->real model.
 	r.Get("/dl", rtr.HandleDownload(getUID))
+	r.Post("/upload", rtr.HandleUpload(getUID))
 	// GRAMSAI live browser panel proxy -> per-user container bridge :8088.
 	// /browse + /healthz are plain HTTP; /ws/* are WebSocket (hijack-and-pipe).
 	r.Get("/api/browser/healthz", rtr.HandleBrowser(getUID))

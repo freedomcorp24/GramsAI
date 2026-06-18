@@ -1,4 +1,4 @@
-import { onMount } from "solid-js"
+import { createSignal, onMount } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { showToast } from "@/utils/toast"
 import { usePrompt, type ContentPart, type ImageAttachmentPart } from "@/context/prompt"
@@ -37,6 +37,8 @@ type PromptAttachmentsInput = {
 export function createPromptAttachments(input: PromptAttachmentsInput) {
   const prompt = usePrompt()
   const language = useLanguage()
+  const [pendingCount, setPendingCount] = createSignal(0)
+  const isUploading = () => pendingCount() > 0
 
   const warn = () => {
     showToast({
@@ -45,28 +47,66 @@ export function createPromptAttachments(input: PromptAttachmentsInput) {
     })
   }
 
+  const patchAttachment = (id: string, patch: Partial<ImageAttachmentPart>) => {
+    const next = prompt.current().map((part) =>
+      part.type === "image" && part.id === id ? { ...part, ...patch } : part,
+    )
+    prompt.set(next, prompt.cursor())
+  }
+
+  const uploadToWorkspace = (file: File, id: string) =>
+    new Promise<void>((resolve) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open("POST", "/upload?name=" + encodeURIComponent(file.name), true)
+      xhr.withCredentials = true
+      xhr.setRequestHeader("Content-Type", "application/octet-stream")
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          patchAttachment(id, { uploadProgress: Math.round((e.loaded / e.total) * 100) })
+        }
+      }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const res = JSON.parse(xhr.responseText)
+            if (res && typeof res.path === "string") {
+              patchAttachment(id, { uploadedPath: res.path, uploadProgress: 100 })
+            }
+          } catch {}
+        }
+        resolve()
+      }
+      xhr.onerror = () => resolve()
+      xhr.ontimeout = () => resolve()
+      xhr.timeout = 120000
+      xhr.send(file)
+    })
+
   const add = async (file: File, toast = true) => {
     const mime = await attachmentMime(file)
     if (!mime) {
       if (toast) warn()
       return false
     }
-
     const editor = input.editor()
     if (!editor) return false
-
     const url = await dataUrl(file, mime)
     if (!url) return false
-
+    const id = uuid()
     const attachment: ImageAttachmentPart = {
       type: "image",
-      id: uuid(),
+      id,
       filename: file.name,
       mime,
       dataUrl: url,
+      uploadProgress: 0,
     }
     const cursor = prompt.cursor() ?? getCursorPosition(editor)
     prompt.set([...prompt.current(), attachment], cursor)
+    setPendingCount((n) => n + 1)
+    void uploadToWorkspace(file, id).finally(() => {
+      setPendingCount((n) => Math.max(0, n - 1))
+    })
     return true
   }
 
@@ -192,5 +232,6 @@ export function createPromptAttachments(input: PromptAttachmentsInput) {
     addAttachments,
     removeAttachment,
     handlePaste,
+    isUploading,
   }
 }

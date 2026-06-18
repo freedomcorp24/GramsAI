@@ -79,3 +79,54 @@ in M2 sshd_config) OR the `python3 -m http.server` + `curl` method.
 ## 10. GOPROXY=off is REQUIRED for Go builds on M1
 M1 routes egress through Tor; `proxy.golang.org` is blocked. Always
 `GOPROXY=off go build ...`. Deps must already be in the module cache/vendor.
+
+---
+
+## 11. The container reads opencode.json at a NESTED path  (SEV: high, time sink)
+The opencode.json the container actually reads is
+`/data/opencode/user-N/config/opencode/opencode.json` (mounted to
+`/root/.config/opencode/opencode.json`) — **NOT** `config/opencode.json` one level up. A
+stray file at the higher level is silently ignored. Patching the wrong level wasted a long
+time during the vision work. Always patch the NESTED path; verify with
+`docker exec oc-user-N sh -c 'grep -c <key> /root/.config/opencode/opencode.json'`.
+Also: the config dir is a PERSISTENT host volume, and `entrypoint.sh` only seeds if
+opencode.json is ABSENT — so recreating a container does NOT reseed. Push new config by
+overwriting the live nested file (or rebuild the image seed tarball AND overwrite live).
+
+## 12. opencode native `file://` image input is BROKEN for custom providers  (SEV: high)
+For custom OpenAI-compatible providers (our gateway), opencode does NOT translate a `file://`
+image attachment into a usable multimodal request — the model reports "doesn't support image
+input" even when it does. Confirmed by GitHub issues #11306, #20802, #15728. The Read tool
+also can't pass image data to vision models (#15728).
+**The working path:** `image_url` + base64 data URL sent straight to `/chat/completions`.
+PROVEN by curl from inside oc-user-4 → gateway `model:"Vision"` → meta-llama/llama-4-maverick
+returned a real description. So image analysis is done as an MCP TOOL (`read_image.js`) that
+makes its own Vision request, NOT via opencode's native vision/attachment flag.
+
+## 13. Uploaded images don't exist on disk  (SEV: high, root of many "can't read image" bugs)
+An uploaded image lives ONLY as a `GENC1:` AES-256-GCM blob in the container SQLite `part`
+table + transiently in opencode memory, and is STRIPPED before a text-only model. It is NOT
+written to the worktree or anywhere on disk. So a path-based tool (read_image) cannot see a
+raw upload. Fix: write uploads to `/workspace/uploads/` via a gateway→agent `/upload` pipeline,
+then pass that path to read_image. (Generated images DO live on disk in worktree `images/`.)
+
+## 14. read_image must call Vision SEPARATELY, not add tools to the deepseek request  (SEV: med)
+A reported "No endpoints found that support tool use" error appeared when a tools/image array
+hit the pinned deepseek provider. `generate_image` works because it's a local MCP tool that
+makes its OWN gateway request (model "Image Gen") — it never puts tools/images on the active
+deepseek chat request. `read_image` follows the same pattern (own `model:"Vision"` request).
+So DON'T touch the gateway provider pin (`order:["DeepSeek"], require_parameters:true`) — it
+is the anti-timeout pin and both image tools work through it.
+
+## 15. str_replace / multi-line .replace() unreliable on M1  (SEV: low, recurring)
+`str_replace` and Python multi-line `.replace()` of source blocks repeatedly FAIL on M1
+because the Whonix terminal mangles tabs/spaces in heredocs, so the anchor never matches.
+**Use line-number splicing** instead: `grep -n` the exact lines, verify with asserts that the
+target lines are what you expect, then replace the range. Confirms beat guesses every time.
+
+## 16. Sequence multi-file features; deploy before asking for a test  (SEV: process)
+During the uploads session, individual pieces (upload logic, progress-bar UI, path note) were
+written but the frontend was NOT rebuilt/deployed between them, so the user tested and saw
+"nothing works" repeatedly. RULE: build ALL pieces of a feature, type-check, `bun run build`
++ deploy to /opt/gramsai/web, THEN have the user test ONCE. Never ask the user to test a
+half-built, undeployed feature.

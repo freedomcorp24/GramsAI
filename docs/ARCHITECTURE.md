@@ -53,7 +53,9 @@ Browser --HTTPS--> M1 OpenResty (:80)
 |   |   |-- auth/         sessions, OAuth (GitHub+Google), /account/info, account.go
 |   |   |-- pay/          NOWPayments, subscribe.html, billing, paid_until lifecycle
 |   |   |-- payments/     payment records
-|   |   |-- router/       container placement + agentSpawn (sends DEK in spawn POST)
+|   |   |-- router/       container placement + agentSpawn (sends DEK in spawn POST);
+|   |   |                 download.go (HandleDownload + chatDirectory); upload.go
+|   |   |                 (HandleUpload -> proxies file to agent /upload, NEW 2026-06-18)
 |   |   |-- memory/       3-tier encrypted memory, CRUD, episodes, search, alias_handler, data_handler
 |   |   |-- containers/   per-user container/quota tracking
 |   |   |-- metering/     usage/cost tracking
@@ -109,6 +111,11 @@ Migrations run automatically on `gramsai-api` boot via goose from `app/db/migrat
 |   |-- entrypoint.sh     seeds /opt/gramsai-config into user's mounted ~/.config if absent
 |   |-- bridge.py         CDP browser bridge (live Browser panel)
 |   |-- memory-search.js  MCP memory search worker
+|   |-- read-image.js     MCP read_image tool (NEW 2026-06-18): reads an image from disk,
+|   |                     base64s it, calls gateway model:"Vision" (-> llama-4-maverick),
+|   |                     returns description. Works in any agent. (MUST be in the explicit
+|   |                     file list in gramsai-deploy.sh ~lines 74-76 to reach the repo.)
+|   |-- image-gen.js      MCP generate_image tool (gateway model:"Image Gen" -> flux)
 |   |-- tavily-search.js  MCP web search worker
 |   |-- workspace-download.js
 |   `-- gramsai-config.tar.gz   opencode.json + 14 agents/*.md (steering, hardened)
@@ -121,7 +128,8 @@ Migrations run automatically on `gramsai-api` boot via goose from `app/db/migrat
 /etc/docker/daemon.json   {"dns":["10.152.152.10"]}
 /etc/iptables/rules.v4    container network isolation firewall (see section 6)
 /etc/iptables/rules.v6
-/data/opencode/user-N/    per-user volumes: config, workspace, local(chats db) - USER DATA, not in git
+/data/opencode/user-N/    per-user volumes: config, workspace (incl. workspace/uploads/ for
+                          user file uploads, NEW 2026-06-18), local(chats db) - USER DATA, not in git
 ```
 
 Plus a **searxng** container (`searxng/searxng`) - self-hosted metasearch used by the
@@ -165,6 +173,9 @@ ssh m2 'docker rm -f oc-user-4'   # respawns on next request
   port: `-p 10.152.152.100:{port}:{port}`.
 - Container reaches gateway for LLM at `http://10.152.152.111/v1` (allowed by firewall).
 - Agent spawn POST carries `dek` (from Redis `memkey:<uid>`); agent injects `-e GRAMSAI_DEK`.
+- Agent HTTP endpoints (mux, `X-Agent-Secret` auth): `/health /spawn /stop /status /recreate
+  /usage /purge /wipe-chats /dl /upload`. `/upload` (NEW 2026-06-18) streams a file to
+  `/data/opencode/user-N/workspace/uploads/<name>` and returns the container path.
 
 ---
 
@@ -180,6 +191,24 @@ ssh m2 'docker rm -f oc-user-4'   # respawns on next request
   `docker exec oc-user-N sh -c 'echo $GRAMSAI_DEK'`.
 
 ---
+
+## 5b. Multimodal: image gen, vision (read_image), and uploads  (NEW 2026-06-18)
+
+- **Image generation:** `generate_image` MCP tool (`image-gen.js`) -> gateway `model:"Image
+  Gen"` -> flux. PNG written to worktree `images/`, returned as a short `/dl` markdown link.
+- **Image analysis (vision):** `read_image` MCP tool (`read-image.js`) -> gateway
+  `model:"Vision"` (= `meta-llama/llama-4-maverick`). Reads a file from disk, base64s it,
+  sends `image_url` data URL (opencode's native `file://` vision path is broken for custom
+  providers — see PITFALLS #12). Works in any agent because it makes its OWN Vision request.
+- **Uploads:** browser POSTs the file to gateway `/upload` (cookie-authed) -> gateway
+  `HandleUpload` resolves uid -> agent `/upload` (X-Agent-Secret) -> written to
+  `/workspace/uploads/<name>`. Frontend shows a per-file progress bar (XHR onprogress) and
+  blocks send until uploads finish (`isUploading` gate). The model is told the uploaded path
+  via a synthetic text part so it can call `read_image`. (Uploads otherwise never hit disk —
+  see PITFALLS #13.)
+- **The gateway provider pin** (`order:["DeepSeek"], require_parameters:true` for non-Image-Gen
+  aliases) is the anti-timeout pin — DO NOT touch it; both image tools work through it
+  because they make separate gateway requests (PITFALLS #14).
 
 ## 6. Container Network Isolation (security)
 
