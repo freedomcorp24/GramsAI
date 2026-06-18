@@ -29,8 +29,8 @@
         "Containers": {
             "0205329a22f7f1477343c4621fe18d2e48064f751ac3d1bbdfe7ce283f929ac3": {
                 "Name": "oc-user-4",
-                "EndpointID": "026021520fd90df6fc2d73bb5a989076399c6357ef74ee1aab478e6feb84de69",
-                "MacAddress": "1a:20:a2:ca:2c:12",
+                "EndpointID": "dd8483d7ef9bbabb8e9cebf6fca6cb4ba2bc46851860f906bece3be454bc4307",
+                "MacAddress": "4e:c5:77:07:d7:60",
                 "IPv4Address": "172.18.0.2/16",
                 "IPv6Address": ""
             }
