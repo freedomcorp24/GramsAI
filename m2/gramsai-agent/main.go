@@ -47,7 +47,7 @@ func main() {
 	mux.HandleFunc("/upload", authed(handleUpload))
 
 	log.Printf("control-agent listening on %s (image=%s)", listen, image)
-	srv := &http.Server{Addr: listen, Handler: mux, ReadTimeout: 30 * time.Second, WriteTimeout: 120 * time.Second}
+	srv := &http.Server{Addr: listen, Handler: mux, ReadHeaderTimeout: 30 * time.Second, ReadTimeout: 0, WriteTimeout: 0, IdleTimeout: 120 * time.Second}
 	log.Fatal(srv.ListenAndServe())
 }
 

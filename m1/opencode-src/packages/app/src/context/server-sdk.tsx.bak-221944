@@ -100,12 +100,7 @@ function createServerSdkContext(server: ServerConnection.Any) {
   let attempt: AbortController | undefined
   let run: Promise<void> | undefined
   let started = false
-  // Server emits server.heartbeat every 10s (event.ts / global.ts: Stream.tick("10 seconds")).
-  // A 15s client window aborts the SSE if a couple of beats are delayed by a busy
-  // upload/long task -> NS_BINDING_ABORTED churn that truncates in-flight uploads.
-  // 35s (3.5x the server interval) tolerates delayed beats while still detecting a
-  // genuinely dead stream promptly. See opencode issue #17769 (heartbeat mismatch).
-  const HEARTBEAT_TIMEOUT_MS = 35_000
+  const HEARTBEAT_TIMEOUT_MS = 15_000
   let lastEventAt = Date.now()
   let heartbeat: ReturnType<typeof setTimeout> | undefined
   const resetHeartbeat = () => {

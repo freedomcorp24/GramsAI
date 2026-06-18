@@ -64,15 +64,6 @@ export function createPromptAttachments(input: PromptAttachmentsInput) {
     prompt.patch(id, patch)
   }
 
-  // Mirror of the agent's server-side filename sanitizer so the client can
-  // reconstruct the saved path when a successful (2xx) upload response body
-  // gets cut off by connection churn (NS_BINDING_ABORTED). The file IS on disk
-  // in that case; we must not yank the attachment.
-  const serverPathFor = (filename: string) => {
-    const base = filename.split(/[\\/]/).pop() ?? filename
-    const safe = base.replace(/[^a-zA-Z0-9._-]/g, "_")
-    return "/workspace/uploads/" + safe
-  }
   const uploadToWorkspace = (file: File, id: string) =>
     new Promise<void>((resolve) => {
       const xhr = new XMLHttpRequest()
@@ -97,14 +88,9 @@ export function createPromptAttachments(input: PromptAttachmentsInput) {
       xhr.onload = () => {
         if (xhr.status < 200 || xhr.status >= 300) { fail("server returned " + xhr.status); return }
         let res: any = null
-        try { res = JSON.parse(xhr.responseText) } catch { res = null }
-        if (res && typeof res.path === "string") {
-          setProgress(id, 100); patchAttachment(id, { uploadedPath: res.path }); resolve(); return
-        }
-        if (res && res.error) { fail(String(res.error)); return }
-        // 2xx but body empty/unparseable (response cut off mid-stream): the file
-        // is on disk server-side. Reconstruct the path instead of falsely failing.
-        setProgress(id, 100); patchAttachment(id, { uploadedPath: serverPathFor(file.name) }); resolve()
+        try { res = JSON.parse(xhr.responseText) } catch { fail("unexpected response (not routed to gateway?)"); return }
+        if (res && typeof res.path === "string") { setProgress(id, 100); patchAttachment(id, { uploadedPath: res.path }); resolve(); return }
+        fail(res && res.error ? String(res.error) : "no path returned")
       }
       xhr.onerror = () => fail("network error")
       xhr.ontimeout = () => fail("timed out")

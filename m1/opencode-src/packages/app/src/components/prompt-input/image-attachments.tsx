@@ -1,3 +1,4 @@
+import { getPreview, getProgress } from "./preview-store"
 import { Component, For, Show } from "solid-js"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
@@ -38,7 +39,7 @@ export const PromptImageAttachments: Component<PromptImageAttachmentsProps> = (p
                   }
                 >
                   <img
-                    src={attachment.dataUrl}
+                    src={getPreview(attachment.id)}
                     alt={attachment.filename}
                     class={imageClass}
                     onClick={() => props.onOpen(attachment)}
@@ -52,12 +53,12 @@ export const PromptImageAttachments: Component<PromptImageAttachmentsProps> = (p
                 >
                   <Icon name="close" class="size-3 text-text-weak" />
                 </button>
-                <Show when={(attachment.uploadProgress ?? 100) < 100}>
+                <Show when={getProgress(attachment.id) < 100}>
                   <div class={uploadingOverlayClass}>
                     <div class={progressTrackClass}>
-                      <div class={progressFillClass} style={{ width: `${attachment.uploadProgress ?? 0}%` }} />
+                      <div class={progressFillClass} style={{ width: `${getProgress(attachment.id)}%` }} />
                     </div>
-                    <span class="text-10-regular text-white">{attachment.uploadProgress ?? 0}%</span>
+                    <span class="text-10-regular text-white">{getProgress(attachment.id)}%</span>
                   </div>
                 </Show>
                 <div class={nameClass}>

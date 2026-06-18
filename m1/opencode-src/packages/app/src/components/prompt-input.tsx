@@ -1,3 +1,4 @@
+import { getPreview } from "./prompt-input/preview-store"
 import { useFilteredList } from "@opencode-ai/ui/hooks"
 import { useSpring } from "@opencode-ai/ui/motion-spring"
 import {
@@ -1719,7 +1720,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
               <PromptImageAttachments
                 attachments={imageAttachments()}
                 onOpen={(attachment) =>
-                  dialog.show(() => <ImagePreview src={attachment.dataUrl} alt={attachment.filename} />)
+                  dialog.show(() => <ImagePreview src={getPreview(attachment.id)} alt={attachment.filename} />)
                 }
                 onRemove={removeAttachment}
                 removeLabel={language.t("prompt.attachment.remove")}
@@ -1889,7 +1890,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
             <PromptImageAttachments
               attachments={imageAttachments()}
               onOpen={(attachment) =>
-                dialog.show(() => <ImagePreview src={attachment.dataUrl} alt={attachment.filename} />)
+                dialog.show(() => <ImagePreview src={getPreview(attachment.id)} alt={attachment.filename} />)
               }
               onRemove={removeAttachment}
               removeLabel={language.t("prompt.attachment.remove")}

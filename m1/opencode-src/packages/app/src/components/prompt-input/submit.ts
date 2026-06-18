@@ -1,3 +1,4 @@
+import { getPreview } from "./preview-store"
 import type { Message, Session } from "@opencode-ai/sdk/v2/client"
 import { showToast } from "@/utils/toast"
 import { base64Encode } from "@opencode-ai/core/util/encode"
@@ -92,7 +93,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
           id: Identifier.ascending("part"),
           type: "file" as const,
           mime: attachment.mime,
-          url: attachment.dataUrl,
+          url: getPreview(attachment.id),
           filename: attachment.filename,
         })),
       })
@@ -470,7 +471,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
               id: Identifier.ascending("part"),
               type: "file" as const,
               mime: attachment.mime,
-              url: attachment.dataUrl,
+              url: getPreview(attachment.id),
               filename: attachment.filename,
             })),
           })
