@@ -36,3 +36,9 @@ m1/opencode-src/packages/desktop/
 m1/opencode-src/packages/opencode/bin/opencode
 m1/opencode-src/nix/
 m2/gramsai-agent/agent-src.tar.gz
+
+# editor/patch backups
+*.bak-*
+*.bak[0-9]*
+*.orig
+*~
