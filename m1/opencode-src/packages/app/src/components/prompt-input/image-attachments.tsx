@@ -1,5 +1,5 @@
 import { getPreview, getProgress } from "./preview-store"
-import { Component, For, Show } from "solid-js"
+import { Component, Index, Show } from "solid-js"
 import { Icon } from "@opencode-ai/ui/icon"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import type { ImageAttachmentPart } from "@/context/prompt"
@@ -26,12 +26,12 @@ export const PromptImageAttachments: Component<PromptImageAttachmentsProps> = (p
   return (
     <Show when={props.attachments.length > 0}>
       <div class="flex flex-wrap gap-2 px-3 pt-3">
-        <For each={props.attachments}>
+        <Index each={props.attachments}>
           {(attachment) => (
-            <Tooltip value={attachment.filename} placement="top" contentClass="break-all">
+            <Tooltip value={attachment().filename} placement="top" contentClass="break-all">
               <div class="relative group">
                 <Show
-                  when={attachment.mime.startsWith("image/")}
+                  when={attachment().mime.startsWith("image/")}
                   fallback={
                     <div class={fallbackClass}>
                       <Icon name="folder" class="size-6 text-text-weak" />
@@ -39,35 +39,35 @@ export const PromptImageAttachments: Component<PromptImageAttachmentsProps> = (p
                   }
                 >
                   <img
-                    src={getPreview(attachment.id)}
-                    alt={attachment.filename}
+                    src={getPreview(attachment().id)}
+                    alt={attachment().filename}
                     class={imageClass}
-                    onClick={() => props.onOpen(attachment)}
+                    onClick={() => props.onOpen(attachment())}
                   />
                 </Show>
                 <button
                   type="button"
-                  onClick={() => props.onRemove(attachment.id)}
+                  onClick={() => props.onRemove(attachment().id)}
                   class={removeClass}
                   aria-label={props.removeLabel}
                 >
                   <Icon name="close" class="size-3 text-text-weak" />
                 </button>
-                <Show when={getProgress(attachment.id) < 100}>
+                <Show when={getProgress(attachment().id) < 100}>
                   <div class={uploadingOverlayClass}>
                     <div class={progressTrackClass}>
-                      <div class={progressFillClass} style={{ width: `${getProgress(attachment.id)}%` }} />
+                      <div class={progressFillClass} style={{ width: `${getProgress(attachment().id)}%` }} />
                     </div>
-                    <span class="text-10-regular text-white">{getProgress(attachment.id)}%</span>
+                    <span class="text-10-regular text-white">{getProgress(attachment().id)}%</span>
                   </div>
                 </Show>
                 <div class={nameClass}>
-                  <span class="text-10-regular text-white truncate block">{attachment.filename}</span>
+                  <span class="text-10-regular text-white truncate block">{attachment().filename}</span>
                 </div>
               </div>
             </Tooltip>
           )}
-        </For>
+        </Index>
       </div>
     </Show>
   )

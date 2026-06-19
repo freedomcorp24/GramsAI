@@ -27,17 +27,10 @@
         "Options": {},
         "Labels": {},
         "Containers": {
-            "4e6c6ea2ab4c623b9b7bdd953e20d17194915c75ebf016961416986f35fe53d0": {
+            "fa33f27b05f825c2b8c2d876fd3c36020014424006d35378b9e938bfefe6508b": {
                 "Name": "oc-user-4",
-                "EndpointID": "8fd7a6221862360fe1f33c0d0cb7d5a0913f1c34f2f35e19ca038ebfaa287ba7",
-                "MacAddress": "3e:e5:b1:51:32:11",
-                "IPv4Address": "172.18.0.3/16",
-                "IPv6Address": ""
-            },
-            "8d656062abf88b20902dbf4d918a69b04297a3a533648b35e1f8c28959c32527": {
-                "Name": "oc-user-8",
-                "EndpointID": "77d29079221efc9cb9022f7678f9c3ac37e9018704066de5e741eddc2f1316e3",
-                "MacAddress": "d6:15:c0:3d:17:6b",
+                "EndpointID": "e4cf4f7fd3459c0ba33ebeab396f4182055f362198d0b9bc1575e11c2ce8105c",
+                "MacAddress": "72:ad:39:a7:eb:35",
                 "IPv4Address": "172.18.0.2/16",
                 "IPv6Address": ""
             }
@@ -46,8 +39,8 @@
             "IPAM": {
                 "Subnets": {
                     "172.18.0.0/16": {
-                        "IPsInUse": 5,
-                        "DynamicIPsAvailable": 65531
+                        "IPsInUse": 4,
+                        "DynamicIPsAvailable": 65532
                     }
                 }
             }
