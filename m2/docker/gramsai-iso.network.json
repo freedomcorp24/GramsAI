@@ -33,14 +33,21 @@
                 "MacAddress": "3e:e5:b1:51:32:11",
                 "IPv4Address": "172.18.0.3/16",
                 "IPv6Address": ""
+            },
+            "8d656062abf88b20902dbf4d918a69b04297a3a533648b35e1f8c28959c32527": {
+                "Name": "oc-user-8",
+                "EndpointID": "77d29079221efc9cb9022f7678f9c3ac37e9018704066de5e741eddc2f1316e3",
+                "MacAddress": "d6:15:c0:3d:17:6b",
+                "IPv4Address": "172.18.0.2/16",
+                "IPv6Address": ""
             }
         },
         "Status": {
             "IPAM": {
                 "Subnets": {
                     "172.18.0.0/16": {
-                        "IPsInUse": 4,
-                        "DynamicIPsAvailable": 65532
+                        "IPsInUse": 5,
+                        "DynamicIPsAvailable": 65531
                     }
                 }
             }

@@ -183,57 +183,30 @@ export function buildRequestParts(input: BuildRequestPartsInput) {
   })
 
 
-  // For uploaded files written to the workspace, tell the model the on-disk path.
-  // Images -> read_image tool. Everything else -> read from disk with bash
-  // (pdftotext for PDF, unzip -l / tar tf for archives, cat for text/code,
-  // file / ffmpeg for binary/audio). Works in any agent (all have bash + read_image).
-  const uploaded = input.images.filter(
-    (a): a is typeof a & { uploadedPath: string } =>
-      typeof a.uploadedPath === "string" && a.uploadedPath.length > 0,
-  )
-  const imagePaths = uploaded
-    .filter((a) => (a.mime ?? "").startsWith("image/"))
+  // For uploaded images that were written to the workspace, tell the model the
+  // on-disk path so it can call the read_image tool (works in any agent).
+  const uploadedPaths = input.images
     .map((a) => a.uploadedPath)
-  const filePaths = uploaded
-    .filter((a) => !(a.mime ?? "").startsWith("image/"))
-    .map((a) => a.uploadedPath)
-  const imageNotes: PromptRequestPart[] = []
-  if (imagePaths.length) {
-    imageNotes.push({
-      id: Identifier.ascending("part"),
-      type: "text" as const,
-      text:
-        "[Attached image" +
-        (imagePaths.length > 1 ? "s" : "") +
-        " saved to the workspace. To view " +
-        (imagePaths.length > 1 ? "them" : "it") +
-        ", call the read_image tool with " +
-        (imagePaths.length > 1 ? "these paths" : "this path") +
-        ": " +
-        imagePaths.join(", ") +
-        "]",
-      synthetic: true,
-    } satisfies PromptRequestPart)
-  }
-  if (filePaths.length) {
-    imageNotes.push({
-      id: Identifier.ascending("part"),
-      type: "text" as const,
-      text:
-        "[Attached file" +
-        (filePaths.length > 1 ? "s" : "") +
-        " saved to the workspace at " +
-        (filePaths.length > 1 ? "these paths" : "this path") +
-        ": " +
-        filePaths.join(", ") +
-        ". Read " +
-        (filePaths.length > 1 ? "them" : "it") +
-        " with the bash tool: use pdftotext (or tesseract for scanned) for PDFs, " +
-        "cat for text/code, unzip -l or tar tf to list archives, and file or ffmpeg " +
-        "to inspect binary/audio.]",
-      synthetic: true,
-    } satisfies PromptRequestPart)
-  }
+    .filter((p): p is string => typeof p === "string" && p.length > 0)
+  const imageNotes = uploadedPaths.length
+    ? [
+        {
+          id: Identifier.ascending("part"),
+          type: "text" as const,
+          text:
+            "[Attached image" +
+            (uploadedPaths.length > 1 ? "s" : "") +
+            " saved to the workspace. To view " +
+            (uploadedPaths.length > 1 ? "them" : "it") +
+            ", call the read_image tool with " +
+            (uploadedPaths.length > 1 ? "these paths" : "this path") +
+            ": " +
+            uploadedPaths.join(", ") +
+            "]",
+          synthetic: true,
+        } satisfies PromptRequestPart,
+      ]
+    : []
   const images = input.images.map((attachment) => {
     return {
       id: Identifier.ascending("part"),

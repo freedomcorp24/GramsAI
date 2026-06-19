@@ -61,9 +61,6 @@ export async function attachmentMime(file: File) {
 
   if (textMime(type)) return "text/plain"
   const bytes = new Uint8Array(await file.slice(0, SAMPLE).arrayBuffer())
-  if (textBytes(bytes)) return "text/plain"
-  // Accept ALL other file types: the workspace stores any bytes, and the in-container
-  // tools (bash + pdftotext/tesseract/unzip/tar/file/ffmpeg) can read them on demand.
-  // Use the browser-provided mime when present, else a generic binary mime.
-  return type || "application/octet-stream"
+  if (!textBytes(bytes)) return
+  return "text/plain"
 }

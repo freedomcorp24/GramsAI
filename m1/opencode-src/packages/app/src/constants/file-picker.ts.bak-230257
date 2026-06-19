@@ -1,8 +1,6 @@
 export const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"]
 
 export const ACCEPTED_FILE_TYPES = [
-  // Accept all file types; downstream tools read any of them from /workspace/uploads.
-  "*/*",
   ...ACCEPTED_IMAGE_TYPES,
   "application/pdf",
   "text/*",
