@@ -34,6 +34,10 @@ func (r *Router) HandleUpload(getUID func(*http.Request) int64) http.HandlerFunc
 			http.Error(w, `{"error":"no container for user"}`, http.StatusNotFound)
 			return
 		}
+		// GRAMSAI_STAGING: uploads go to the agent's per-user staging dir, decoupled
+		// from any chat/worktree (which may not exist yet on a brand-new chat). The
+		// proxy drains staging into the resolved worktree at message-run time. No
+		// chat/dir resolution needed here.
 		agentURL := fmt.Sprintf("%s/upload?user_id=%d&name=%s", controlURL, uid, url.QueryEscape(name))
 		areq, err := http.NewRequestWithContext(req.Context(), "POST", agentURL, req.Body)
 		if err != nil {

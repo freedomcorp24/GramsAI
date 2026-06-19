@@ -26,6 +26,10 @@ cat > "$WORKSPACE/.gitignore" << 'GI'
 __pycache__/
 *.pyc
 .DS_Store
+# Per-chat files: never track or commit. Tracking these caused every new
+# worktree to inherit all images/uploads (storage blowup) via checkout.
+images/
+uploads/
 GI
 if [ ! -d "$WORKSPACE/.git" ]; then
   git init -q "$WORKSPACE"

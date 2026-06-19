@@ -557,7 +557,16 @@ function SessionHeaderV2Actions(props: { state: SessionHeaderV2ActionsState }) {
             variant="ghost-muted"
             size="large"
             class="!w-9 shrink-0"
-            onClick={() => window.open("/dl?dir=" + encodeURIComponent(props.state.downloadDir), "_blank")}
+            onClick={() =>
+              window.open(
+                // GRAMSAI_DL_BY_CHAT: download THIS chat's worktree (per-chat),
+                // not shared master. Falls back to dir if no session id yet.
+                props.state.sessionID
+                  ? "/dl?chat=" + encodeURIComponent(props.state.sessionID)
+                  : "/dl?dir=" + encodeURIComponent(props.state.downloadDir),
+                "_blank",
+              )
+            }
             aria-label="Download chat"
             icon={<Icon name="download-tray" size="small" />}
           />

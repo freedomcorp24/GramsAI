@@ -325,6 +325,27 @@ export default function Page() {
   const info = createMemo(() => (params.id ? sync.session.get(params.id) : undefined))
   const isChildSession = createMemo(() => !!info()?.parentID)
   const diffs = createMemo(() => (params.id ? list(sync.data.session_diff[params.id]) : []))
+  // GRAMSAI_LS_STRIP: list ALL files in this chat's worktree (not just git-changed),
+  // so generated images, collage, bash outputs and uploads all get View/Download.
+  const [chatFiles] = createResource(
+    () => params.id,
+    async (id: string) => {
+      try {
+        const r = await fetch("/ls?chat=" + encodeURIComponent(id))
+        if (!r.ok) return [] as string[]
+        const j = await r.json()
+        const files = (j?.files ?? []) as Array<{ path: string; isDir: boolean }>
+        // Only worktree-ROOT files (created/generated outputs like collage.png).
+        // Skip dirs and anything under a subdir (e.g. uploads/* are user inputs,
+        // shown inline near the prompt, not in the View/Download strip).
+        return files
+          .filter((f) => !f.isDir && !f.path.includes("/"))
+          .map((f) => f.path)
+      } catch {
+        return [] as string[]
+      }
+    },
+  )
   const canReview = createMemo(() => !!sync.project)
   const reviewTab = createMemo(() => isDesktop())
   const tabState = createSessionTabs({
@@ -1906,7 +1927,7 @@ export default function Page() {
 
           <Show when={params.id}>
             <ChatFilesStrip
-              files={() => reviewDiffs().map((d) => (d as any).file).filter((f: unknown): f is string => typeof f === "string")}
+              files={() => chatFiles() ?? []}
               onView={onViewFile}
               onDownload={onDownloadFile}
             />

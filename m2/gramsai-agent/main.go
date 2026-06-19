@@ -12,8 +12,8 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"strconv"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -45,6 +45,8 @@ func main() {
 	mux.HandleFunc("/wipe-chats", authed(handleWipeChats))
 	mux.HandleFunc("/dl", authed(handleDownload))
 	mux.HandleFunc("/upload", authed(handleUpload))
+	mux.HandleFunc("/drain", authed(handleDrain))
+	mux.HandleFunc("/ls", authed(handleList))
 
 	log.Printf("control-agent listening on %s (image=%s)", listen, image)
 	srv := &http.Server{Addr: listen, Handler: mux, ReadHeaderTimeout: 30 * time.Second, ReadTimeout: 0, WriteTimeout: 0, IdleTimeout: 120 * time.Second}
@@ -67,11 +69,11 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 type spawnReq struct {
-	UserID int64  `json:"user_id"`
-	Token  string `json:"token"`
-	Port   int    `json:"port"`
-	BrowserPort int `json:"browser_port"`
-	DEK    string `json:"dek"`   // GRAMSAI_DEK_AGENT: base64 per-user DEK (may be empty)
+	UserID      int64  `json:"user_id"`
+	Token       string `json:"token"`
+	Port        int    `json:"port"`
+	BrowserPort int    `json:"browser_port"`
+	DEK         string `json:"dek"` // GRAMSAI_DEK_AGENT: base64 per-user DEK (may be empty)
 }
 
 func handleSpawn(w http.ResponseWriter, r *http.Request) {
@@ -160,13 +162,17 @@ func handleUsage(w http.ResponseWriter, r *http.Request) {
 	// local/ (full)
 	if out, e := runOut("du", "-sb", dir+"/local"); e == nil {
 		if f := strings.Fields(out); len(f) > 0 {
-			if v, pe := strconv.ParseInt(f[0], 10, 64); pe == nil { bytes += v }
+			if v, pe := strconv.ParseInt(f[0], 10, 64); pe == nil {
+				bytes += v
+			}
 		}
 	}
 	// workspace/ minus .git: du -sb --exclude=.git
 	if out, e := runOut("du", "-sb", "--exclude=.git", dir+"/workspace"); e == nil {
 		if f := strings.Fields(out); len(f) > 0 {
-			if v, pe := strconv.ParseInt(f[0], 10, 64); pe == nil { bytes += v }
+			if v, pe := strconv.ParseInt(f[0], 10, 64); pe == nil {
+				bytes += v
+			}
 		}
 	}
 	writeJSON(w, 200, map[string]any{"user_id": id, "bytes": bytes})
@@ -285,7 +291,6 @@ func running(name string) bool {
 	return strings.TrimSpace(out) == "true"
 }
 
-
 // handleDownload serves a single file from a user's workspace, bind-mounted on
 // the host at {dataRoot}/user-N/workspace. Gateway passes user_id + dir (a
 // /workspace-relative or /workspace-prefixed path). Images served inline so they
@@ -293,10 +298,15 @@ func running(name string) bool {
 
 func serveFile(w http.ResponseWriter, full string) {
 	f, err := os.Open(full)
-	if err != nil { writeJSON(w, 404, map[string]any{"error":"file not found"}); return }
+	if err != nil {
+		writeJSON(w, 404, map[string]any{"error": "file not found"})
+		return
+	}
 	defer f.Close()
 	ctype := mime.TypeByExtension(strings.ToLower(filepath.Ext(full)))
-	if ctype == "" { ctype = "application/octet-stream" }
+	if ctype == "" {
+		ctype = "application/octet-stream"
+	}
 	w.Header().Set("Content-Type", ctype)
 	if strings.HasPrefix(ctype, "image/") {
 		w.Header().Set("Content-Disposition", `inline; filename="`+filepath.Base(full)+`"`)
@@ -334,15 +344,24 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	name = string(safe)
-	dir := fmt.Sprintf("%s/user-%d/workspace/uploads", dataRoot, id)
-	if e := os.MkdirAll(dir, 0755); e != nil {
+	// GRAMSAI_STAGING: uploads land in a per-user host-only staging dir, NOT tied
+	// to any worktree (the worktree may not exist yet on a brand-new chat). The
+	// gateway later drains staging -> the resolved worktree's uploads/ at message
+	// run time (see /drain), so the model (cwd = worktree) reads "uploads/<name>".
+	// Staging is under the user host root, never mounted into the container, so
+	// the model can't see it pre-drain; the move is a rename (no double storage).
+	userHostRoot := filepath.Clean(fmt.Sprintf("%s/user-%d", dataRoot, id))
+	staging := userHostRoot + "/staging"
+	if e := os.MkdirAll(staging, 0755); e != nil {
 		writeJSON(w, 500, map[string]any{"error": "mkdir: " + e.Error()})
 		return
 	}
-	full := filepath.Join(dir, name)
-	cleanDir := filepath.Clean(dir)
+	// Unique staging key keeps same-named uploads from colliding before drain.
+	stagedName := fmt.Sprintf("%d-%s", time.Now().UnixNano(), name)
+	full := filepath.Join(staging, stagedName)
+	cleanStaging := filepath.Clean(staging)
 	cleanFull := filepath.Clean(full)
-	if !strings.HasPrefix(cleanFull, cleanDir+string(os.PathSeparator)) {
+	if !strings.HasPrefix(cleanFull, cleanStaging+string(os.PathSeparator)) {
 		writeJSON(w, 400, map[string]any{"error": "invalid path"})
 		return
 	}
@@ -358,7 +377,111 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, map[string]any{"error": "write: " + e.Error()})
 		return
 	}
-	writeJSON(w, 200, map[string]any{"ok": true, "path": "/workspace/uploads/" + name, "bytes": n})
+	// path is what the model will see AFTER drain (relative to worktree cwd);
+	// staged is the staging key the gateway drains. Final on-disk name is the
+	// original <name> (drain strips the unix-nano prefix).
+	writeJSON(w, 200, map[string]any{"ok": true, "path": "uploads/" + name, "staged": stagedName, "bytes": n})
+}
+
+
+// handleDrain moves every file from the user's staging dir into the resolved
+// worktree's uploads/ dir, then returns the moved filenames. Called by the
+// gateway right before a session message runs (the worktree is known by then).
+// The move is a rename within the same filesystem (instant, no extra storage);
+// the unix-nano prefix added at upload time is stripped so the model sees the
+// original filename under uploads/. dir is the CONTAINER worktree path, mapped
+// to host via the same mounts as upload/dl/ls.
+func handleDrain(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]any{"error": "POST required"})
+		return
+	}
+	uidStr := r.URL.Query().Get("user_id")
+	id, err := strconv.ParseInt(uidStr, 10, 64)
+	if err != nil || id <= 0 {
+		writeJSON(w, 400, map[string]any{"error": "valid user_id required"})
+		return
+	}
+	userHostRoot := filepath.Clean(fmt.Sprintf("%s/user-%d", dataRoot, id))
+	staging := userHostRoot + "/staging"
+	// Resolve the worktree (container path) -> host base, same mounts as upload.
+	base := userHostRoot + "/workspace"
+	if wt := strings.TrimSpace(r.URL.Query().Get("dir")); wt != "" {
+		c := filepath.Clean(wt)
+		var host string
+		switch {
+		case c == "/workspace" || strings.HasPrefix(c, "/workspace/"):
+			host = userHostRoot + "/workspace" + strings.TrimPrefix(c, "/workspace")
+		case strings.HasPrefix(c, "/root/.local/") || c == "/root/.local":
+			host = userHostRoot + "/local" + strings.TrimPrefix(c, "/root/.local")
+		case strings.HasPrefix(c, "/root/.config/") || c == "/root/.config":
+			host = userHostRoot + "/config" + strings.TrimPrefix(c, "/root/.config")
+		}
+		host = filepath.Clean(host)
+		if host != "" && (host == userHostRoot || strings.HasPrefix(host, userHostRoot+string(os.PathSeparator))) {
+			base = host
+		}
+	}
+	dst := base + "/uploads"
+	entries, derr := os.ReadDir(staging)
+	if derr != nil {
+		// No staging dir => nothing to drain; that's fine.
+		writeJSON(w, 200, map[string]any{"ok": true, "moved": []string{}})
+		return
+	}
+	if e := os.MkdirAll(dst, 0755); e != nil {
+		writeJSON(w, 500, map[string]any{"error": "mkdir: " + e.Error()})
+		return
+	}
+	cleanDst := filepath.Clean(dst)
+	moved := []string{}
+	for _, ent := range entries {
+		if ent.IsDir() {
+			continue
+		}
+		stagedName := ent.Name()
+		// strip the "<unixnano>-" prefix to recover the original name
+		orig := stagedName
+		if i := strings.IndexByte(stagedName, '-'); i >= 0 {
+			orig = stagedName[i+1:]
+		}
+		if orig == "" {
+			orig = stagedName
+		}
+		src := filepath.Join(staging, stagedName)
+		dstFull := filepath.Clean(filepath.Join(dst, orig))
+		if !strings.HasPrefix(dstFull, cleanDst+string(os.PathSeparator)) {
+			continue
+		}
+		if e := os.Rename(src, dstFull); e != nil {
+			// cross-device or other: fall back to copy+remove
+			if cp := copyFile(src, dstFull); cp == nil {
+				_ = os.Remove(src)
+			} else {
+				continue
+			}
+		}
+		moved = append(moved, orig)
+	}
+	writeJSON(w, 200, map[string]any{"ok": true, "moved": moved})
+}
+
+// copyFile copies src to dst (used as a rename fallback across filesystems).
+func copyFile(src, dst string) error {
+	in, e := os.Open(src)
+	if e != nil {
+		return e
+	}
+	defer in.Close()
+	out, e := os.Create(dst)
+	if e != nil {
+		return e
+	}
+	defer out.Close()
+	if _, e := io.Copy(out, in); e != nil {
+		return e
+	}
+	return nil
 }
 
 func handleDownload(w http.ResponseWriter, r *http.Request) {
@@ -378,7 +501,8 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 		rel = ""
 		// base now points at the exact file/dir; treat trailing as full path
 		if fi, e := os.Stat(base); e == nil && !fi.IsDir() {
-			serveFile(w, base); return
+			serveFile(w, base)
+			return
 		}
 	}
 	rel = strings.TrimPrefix(rel, "/workspace")
@@ -429,6 +553,69 @@ func handleDownload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, max-age=300")
 	w.WriteHeader(200)
 	_, _ = io.Copy(w, f)
+}
+
+// handleList walks a session worktree dir and returns its files as JSON
+// (path relative to the worktree, e.g. "uploads/collage.png", plus size).
+// Feeds the in-chat file strip + the file-tree tab. Mirrors handleDownload's
+// container->host path translation so it lists the SAME per-chat worktree.
+func handleList(w http.ResponseWriter, r *http.Request) {
+	uidStr := r.URL.Query().Get("user_id")
+	id, err := strconv.ParseInt(uidStr, 10, 64)
+	if err != nil || id <= 0 {
+		writeJSON(w, 400, map[string]any{"error": "valid user_id required"})
+		return
+	}
+	// Translate the container worktree path -> host path (same mounts as upload/dl).
+	userHostRoot := filepath.Clean(fmt.Sprintf("%s/user-%d", dataRoot, id))
+	base := userHostRoot + "/workspace"
+	if wt := strings.TrimSpace(r.URL.Query().Get("dir")); wt != "" {
+		c := filepath.Clean(wt)
+		var host string
+		switch {
+		case c == "/workspace" || strings.HasPrefix(c, "/workspace/"):
+			host = userHostRoot + "/workspace" + strings.TrimPrefix(c, "/workspace")
+		case strings.HasPrefix(c, "/root/.local/") || c == "/root/.local":
+			host = userHostRoot + "/local" + strings.TrimPrefix(c, "/root/.local")
+		case strings.HasPrefix(c, "/root/.config/") || c == "/root/.config":
+			host = userHostRoot + "/config" + strings.TrimPrefix(c, "/root/.config")
+		}
+		host = filepath.Clean(host)
+		if host != "" && (host == userHostRoot || strings.HasPrefix(host, userHostRoot+string(os.PathSeparator))) {
+			base = host
+		}
+	}
+	cleanBase := filepath.Clean(base)
+	type entry struct {
+		Path  string `json:"path"`
+		Size  int64  `json:"size"`
+		IsDir bool   `json:"isDir"`
+	}
+	out := []entry{}
+	skip := map[string]bool{".git": true, ".config": true, ".local": true, ".opencode": true}
+	_ = filepath.Walk(cleanBase, func(p string, fi os.FileInfo, e error) error {
+		if e != nil || p == cleanBase {
+			return nil
+		}
+		rel := strings.TrimPrefix(p, cleanBase+string(os.PathSeparator))
+		top := rel
+		if i := strings.IndexByte(rel, os.PathSeparator); i >= 0 {
+			top = rel[:i]
+		}
+		if skip[top] {
+			if fi.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		name := filepath.Base(p)
+		if name == ".gitignore" || name == ".gitignore.bak" || strings.HasSuffix(name, ".bak") || strings.HasSuffix(name, ".db") || strings.HasSuffix(name, ".db-shm") || strings.HasSuffix(name, ".db-wal") {
+			return nil
+		}
+		out = append(out, entry{Path: rel, Size: fi.Size(), IsDir: fi.IsDir()})
+		return nil
+	})
+	writeJSON(w, 200, map[string]any{"ok": true, "files": out})
 }
 
 func run(name string, args ...string) error { return exec.Command(name, args...).Run() }

@@ -8,6 +8,7 @@ package router
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,7 +16,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
-	"encoding/base64"
 	"sync"
 
 	"gramsai/internal/memory"
@@ -30,7 +30,7 @@ type Router struct {
 	pool        *pgxpool.Pool
 	agentSecret string
 	keys        *memory.KeyStore // per-user DEK store (for container encryption)
-	mu          sync.Mutex // serializes spawn decisions (port assignment races)
+	mu          sync.Mutex       // serializes spawn decisions (port assignment races)
 }
 
 func New(pool *pgxpool.Pool, agentSecret string, keys *memory.KeyStore) *Router {
@@ -375,6 +375,23 @@ func (r *Router) Proxy(getUserID func(*http.Request) int64) http.Handler {
 			return
 		}
 		target, _ := url.Parse(t.URL())
+		// GRAMSAI_CWD_BIND: for a session message run, force ?directory=<worktree>
+		// so the model's cwd binds to THIS chat's worktree (OpenCode #6697 leaves
+		// Instance.directory stuck on master otherwise). Resolved server-side from
+		// the session id in the path; bash, read_image and generated-image writes
+		// all follow cwd, so this one injection fixes per-chat file isolation end
+		// to end. Done before proxying so the body stream is untouched.
+		if sid := sessionIDFromMessagePath(req.URL.Path); sid != "" {
+			if wt, derr := r.chatDirectory(req, uid, sid); derr == nil && wt != "" {
+				q := req.URL.Query()
+				q.Set("directory", wt)
+				req.URL.RawQuery = q.Encode()
+				// GRAMSAI_STAGING drain: move any staged uploads into THIS worktree's
+				// uploads/ before the model runs, so cwd-relative "uploads/<name>"
+				// resolves. Best-effort; a drain failure must not block the run.
+				r.drainStaging(req, uid, wt)
+			}
+		}
 		rp := &httputil.ReverseProxy{
 			Director: func(rq *http.Request) {
 				rq.URL.Scheme = target.Scheme
@@ -394,6 +411,58 @@ func (r *Router) Proxy(getUserID func(*http.Request) int64) http.Handler {
 	})
 }
 
+// sessionIDFromMessagePath returns the session id if the path is a session
+// message run (".../session/<id>/message" or ".../session/<id>/command"),
+// else "". The path may be prefixed by a base64 :dir segment, so we scan for
+// the "session/" marker rather than anchoring at the root.
+func sessionIDFromMessagePath(p string) string {
+	const marker = "/session/"
+	i := strings.Index(p, marker)
+	if i < 0 {
+		return ""
+	}
+	rest := p[i+len(marker):]
+	// rest is "<id>/message" | "<id>/command" | "<id>" | "<id>/..."
+	slash := strings.IndexByte(rest, '/')
+	if slash < 0 {
+		return ""
+	}
+	id := rest[:slash]
+	tail := rest[slash+1:]
+	if id == "" {
+		return ""
+	}
+	if tail == "message" || tail == "command" ||
+		strings.HasPrefix(tail, "message") || strings.HasPrefix(tail, "command") ||
+		strings.HasPrefix(tail, "prompt") {
+		return id
+	}
+	return ""
+}
+
+// drainStaging asks the user's control-agent to move any files from the user's
+// staging dir into the given worktree's uploads/ dir. Called right before a
+// session message runs. Best-effort: errors are swallowed so a drain hiccup
+// never blocks the model. The agent does the actual move (rename) on the host.
+func (r *Router) drainStaging(req *http.Request, uid int64, worktree string) {
+	var controlURL string
+	if err := r.pool.QueryRow(req.Context(),
+		`SELECT h.control_url FROM containers c JOIN hosts h ON h.id = c.host_id WHERE c.user_id=$1`,
+		uid).Scan(&controlURL); err != nil {
+		return
+	}
+	u := fmt.Sprintf("%s/drain?user_id=%d&dir=%s", controlURL, uid, url.QueryEscape(worktree))
+	areq, err := http.NewRequestWithContext(req.Context(), "POST", u, nil)
+	if err != nil {
+		return
+	}
+	areq.Header.Set("X-Agent-Secret", r.agentSecret)
+	resp, err := http.DefaultClient.Do(areq)
+	if err != nil {
+		return
+	}
+	_ = resp.Body.Close()
+}
 
 // ---- storage usage poller ----
 
@@ -463,7 +532,6 @@ func (r *Router) agentUsage(ctx context.Context, hostID, userID int64) (int64, e
 	}
 	return out.Bytes, nil
 }
-
 
 // ---- lifecycle: 7-day data-grace purge + 90-day stale flag ----
 

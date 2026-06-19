@@ -76,7 +76,32 @@ export function createPromptAttachments(input: PromptAttachmentsInput) {
   const uploadToWorkspace = (file: File, id: string) =>
     new Promise<void>((resolve) => {
       const xhr = new XMLHttpRequest()
-      xhr.open("POST", "/upload?name=" + encodeURIComponent(file.name), true)
+      // Resolve the session id from the URL (/:dir/session/:id) so the upload lands
+      // in THIS chat's worktree, not shared master. Reading our own URL is safe
+      // (unlike a server-side Referer, which is client-spoofable).
+      const m = window.location.pathname.split("/session/")
+      const chat = m.length > 1 ? (m[1].split("/")[0] || "") : ""
+      // New-chat fallback: when there is no session id yet, the URL's first path
+      // segment is the base64 worktree dir (/<b64dir>/session/...). Decode it and
+      // send &dir= so uploads land in THAT worktree, not master /workspace.
+      let dir = ""
+      if (!chat) {
+        try {
+          const seg = window.location.pathname.split("/").filter(Boolean)[0] || ""
+          if (seg) {
+            let b = seg.replace(/-/g, "+").replace(/_/g, "/")
+            while (b.length % 4) b += "="
+            dir = atob(b)
+          }
+        } catch {
+          dir = ""
+        }
+      }
+      const uploadUrl =
+        "/upload?name=" + encodeURIComponent(file.name) +
+        (chat ? "&chat=" + encodeURIComponent(chat) : "") +
+        (!chat && dir ? "&dir=" + encodeURIComponent(dir) : "")
+      xhr.open("POST", uploadUrl, true)
       xhr.withCredentials = true
       xhr.setRequestHeader("Content-Type", "application/octet-stream")
       xhr.upload.onprogress = (e) => {
