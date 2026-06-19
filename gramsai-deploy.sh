@@ -29,6 +29,9 @@ rsync -a --delete /opt/gramsai/admin-web/ "$REPO/m1/admin-web/"
 say "Collecting M1: opencode-src (SOURCE only — excluding node_modules/dist/build)"
 rsync -a --delete \
   --exclude='node_modules' \
+  --exclude='*.bak*' \
+  --exclude='*.orig' \
+  --exclude='*~' \
   --exclude='dist' \
   --exclude='**/dist' \
   --exclude='.git' \
