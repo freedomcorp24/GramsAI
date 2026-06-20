@@ -9,6 +9,7 @@ import {
   Switch,
   createMemo,
   createEffect,
+  createSignal,
   createComputed,
   on,
   onMount,
@@ -53,6 +54,7 @@ import {
   shouldFocusTerminalOnKeyDown,
 } from "@/pages/session/helpers"
 import { ChatFilesStrip } from "@/components/chat-files-strip"
+import FileTree from "@/components/file-tree"
 import { decode64 } from "@/utils/base64"
 import { MessageTimeline } from "@/pages/session/message-timeline"
 import { type DiffStyle, SessionReviewTab, type SessionReviewTabProps } from "@/pages/session/review-tab"
@@ -325,27 +327,53 @@ export default function Page() {
   const info = createMemo(() => (params.id ? sync.session.get(params.id) : undefined))
   const isChildSession = createMemo(() => !!info()?.parentID)
   const diffs = createMemo(() => (params.id ? list(sync.data.session_diff[params.id]) : []))
-  // GRAMSAI_LS_STRIP: list ALL files in this chat's worktree (not just git-changed),
-  // so generated images, collage, bash outputs and uploads all get View/Download.
-  const [chatFiles] = createResource(
-    () => params.id,
-    async (id: string) => {
-      try {
-        const r = await fetch("/ls?chat=" + encodeURIComponent(id))
-        if (!r.ok) return [] as string[]
-        const j = await r.json()
-        const files = (j?.files ?? []) as Array<{ path: string; isDir: boolean }>
-        // Only worktree-ROOT files (created/generated outputs like collage.png).
-        // Skip dirs and anything under a subdir (e.g. uploads/* are user inputs,
-        // shown inline near the prompt, not in the View/Download strip).
-        return files
-          .filter((f) => !f.isDir && !f.path.includes("/"))
-          .map((f) => f.path)
-      } catch {
-        return [] as string[]
-      }
-    },
-  )
+  // GRAMSAI_LS_STRIP: list this chat's worktree ROOT files (generated images,
+  // collage, bash outputs) so each gets View/Download. Plain signal + manual fetch
+  // (NOT createResource) so refetching never triggers Suspense / a loading overlay.
+  // OpenCode has no live file-tree refresh (upstream issues #19182/#18504/#11856);
+  // the endorsed pattern is to refresh on tool/message completion. We refetch when
+  // this chat stops streaming (busy -> false), which fires AFTER the worktree write
+  // settles — covering the 1st, 2nd and Nth file created in the same session.
+  const [chatFiles, setChatFiles] = createSignal<string[]>([])
+  const loadChatFiles = async (id: string) => {
+    if (!id) {
+      setChatFiles([])
+      return
+    }
+    try {
+      const r = await fetch("/ls?chat=" + encodeURIComponent(id))
+      if (!r.ok) return
+      const j = await r.json()
+      const files = (j?.files ?? []) as Array<{ path: string; isDir: boolean }>
+      // Root-level non-dir files only (uploads/* are inputs, shown by the prompt).
+      setChatFiles(files.filter((f) => !f.isDir && !f.path.includes("/")).map((f) => f.path))
+    } catch {
+      // keep last-known list on transient error (no flash to empty)
+    }
+  }
+  // Load when the chat changes, and reload each time it finishes streaming.
+  let lastFilesBusy = false
+  createEffect(() => {
+    const id = params.id
+    if (!id) {
+      setChatFiles([])
+      lastFilesBusy = false
+      return
+    }
+    const working = sync.data.session_working(id)
+    // On chat open: working is false -> initial load. On stream end: true->false -> reload.
+    if (lastFilesBusy && !working) {
+      void loadChatFiles(id)
+    } else if (!working && chatFiles().length === 0) {
+      void loadChatFiles(id)
+    }
+    lastFilesBusy = working
+  })
+  // Also do an immediate load whenever the chat id changes (open / switch).
+  createEffect(() => {
+    const id = params.id
+    if (id) void loadChatFiles(id)
+  })
   const canReview = createMemo(() => !!sync.project)
   const reviewTab = createMemo(() => isDesktop())
   const tabState = createSessionTabs({
@@ -469,7 +497,7 @@ export default function Page() {
 
   const [store, setStore] = createStore({
     messageId: undefined as string | undefined,
-    mobileTab: "session" as "session" | "changes" | "browser", // GRAMSAI_BROWSER_MOBILE
+    mobileTab: "session" as "session" | "changes" | "browser" | "files", // GRAMSAI_BROWSER_MOBILE + GRAMSAI_FILES_MOBILE
     changes: "git" as ChangeMode,
     newSessionWorktree: "create",
     deferRender: false,
@@ -1815,7 +1843,7 @@ export default function Page() {
             <Tabs.List>
               <Tabs.Trigger
                 value="session"
-                class="!w-1/3 !max-w-none"
+                class="!w-1/4 !max-w-none"
                 classes={{ button: "w-full" }}
                 onClick={() => setStore("mobileTab", "session")}
               >
@@ -1823,7 +1851,7 @@ export default function Page() {
               </Tabs.Trigger>
               <Tabs.Trigger
                 value="changes"
-                class="!w-1/3 !max-w-none"
+                class="!w-1/4 !max-w-none"
                 classes={{ button: "w-full" }}
                 onClick={() => setStore("mobileTab", "changes")}
               >
@@ -1834,11 +1862,20 @@ export default function Page() {
               {/* GRAMSAI_BROWSER_MOBILE */}
               <Tabs.Trigger
                 value="browser"
-                class="!w-1/3 !max-w-none !border-r-0"
+                class="!w-1/4 !max-w-none"
                 classes={{ button: "w-full" }}
                 onClick={() => setStore("mobileTab", "browser")}
               >
                 Browser
+              </Tabs.Trigger>
+              {/* GRAMSAI_FILES_MOBILE */}
+              <Tabs.Trigger
+                value="files"
+                class="!w-1/4 !max-w-none !border-r-0"
+                classes={{ button: "w-full" }}
+                onClick={() => setStore("mobileTab", "files")}
+              >
+                Files
               </Tabs.Trigger>
             </Tabs.List>
           </Tabs>
@@ -1881,6 +1918,18 @@ export default function Page() {
                     loadingClass: "px-4 py-4 text-text-weak",
                     emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
                   })}
+                </div>
+              </Match>
+              {/* GRAMSAI_FILES_MOBILE */}
+              <Match when={params.id && store.mobileTab === "files"}>
+                <div class="relative h-full overflow-y-auto bg-background-stronger px-3 py-3">
+                  <FileTree
+                    path=""
+                    onFileClick={(node) => {
+                      onViewFile(file.tab(node.path))
+                      setStore("mobileTab", "session")
+                    }}
+                  />
                 </div>
               </Match>
               <Match when={params.id}>
@@ -1927,7 +1976,7 @@ export default function Page() {
 
           <Show when={params.id}>
             <ChatFilesStrip
-              files={() => chatFiles() ?? []}
+              files={() => chatFiles()}
               onView={onViewFile}
               onDownload={onDownloadFile}
             />

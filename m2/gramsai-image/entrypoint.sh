@@ -38,7 +38,11 @@ git -C "$WORKSPACE" config user.email "agent@grams.chat"
 git -C "$WORKSPACE" config user.name "GramsAI"
 git -C "$WORKSPACE" config commit.gpgsign false
 git -C "$WORKSPACE" config core.autocrlf false
-git -C "$WORKSPACE" add -A 2>/dev/null || true
+# Only ever stage .gitignore into the baseline. Master is a bare branch-root for
+# worktrees; created/output files written to master root must NEVER enter its tree,
+# else every new worktree inherits them (the collage.png inheritance bug).
+git -C "$WORKSPACE" rm -r --cached --quiet . 2>/dev/null || true
+git -C "$WORKSPACE" add -f .gitignore 2>/dev/null || true
 if ! git -C "$WORKSPACE" rev-parse HEAD >/dev/null 2>&1; then
   git -C "$WORKSPACE" commit -q -m "workspace baseline" 2>/dev/null || true
 else
